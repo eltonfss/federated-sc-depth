@@ -32,7 +32,6 @@ from datetime import datetime
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import RandomSampler
 from torch.utils.data import DataLoader
-from mae_model import *
 
 from sc_depth_pl.SC_Depth import SC_Depth
 from sc_depth_pl.SC_DepthV2 import SC_DepthV2
@@ -223,18 +222,6 @@ def write_log_and_plot(
         name = "_".join(res).replace(": ", "_")
         print("writing best results for {}: {} !".format(name, test_acc))
 
-
-def get_global_model(args, train_dataset):
-    from models import SimCLR
-    from simsiam import SimSiam
-
-    if args.ssl_method == "simclr":
-        global_model = SimCLR(args=args)
-    elif args.ssl_method == "simsiam":
-        global_model = SimSiam(args=args)
-    elif args.ssl_method == "mae":
-        global_model = MAE_ViT(mask_ratio=0.75)
-    return global_model
 
 def get_global_model_sc_depth(hparams):
 

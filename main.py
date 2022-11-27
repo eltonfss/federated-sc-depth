@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Python version: 3.6
+# Python version: 3.8
 
 
 import os
@@ -10,17 +10,13 @@ import random
 import csv
 import numpy as np
 from tqdm import tqdm
-import torch
-
-from tensorboardX import SummaryWriter
-from options import args_parser
-from models import *
-from utils import *
-from datetime import datetime
-from update import LocalUpdate, LocalUpdateSCDepth, test_inference
 from pprint import pprint
 import IPython
+from tensorboardX import SummaryWriter
+from datetime import datetime
+import socket
 
+import torch
 from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
@@ -28,7 +24,11 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.utils.data import RandomSampler
-import socket
+
+from dec_ssl.options import args_parser
+from dec_ssl.utils import *
+from dec_ssl.update import LocalUpdate, LocalUpdateSCDepth, test_inference
+
 from sc_depth_pl.config import get_opts
 
 if __name__ == "__main__":
