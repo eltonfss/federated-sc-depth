@@ -3,8 +3,7 @@ from torch import nn
 import numpy as np
 import torch.nn.functional as F
 
-device = torch.device(
-    "cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 """
 Sampling strategies: RS (Random Sampling), EGS (Edge-Guided Sampling)

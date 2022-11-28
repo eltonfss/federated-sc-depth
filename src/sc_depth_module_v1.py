@@ -3,14 +3,14 @@ import torch
 from pytorch_lightning import LightningModule
 
 import losses.loss_functions as LossF
-from base_models.DepthNet import DepthNet
-from base_models.PoseNet import PoseNet
-from visualization import *
+from models.DepthNet import DepthNet
+from models.PoseNet import PoseNet
+from utils import visualize_depth, visualize_image
 
 
-class SC_Depth(LightningModule):
+class SCDepthModuleV1(LightningModule):
     def __init__(self, hparams):
-        super(SC_Depth, self).__init__()
+        super(SCDepthModuleV1, self).__init__()
         self.save_hyperparameters()
 
         # model

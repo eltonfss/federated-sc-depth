@@ -8,8 +8,7 @@ from .inverse_warp import inverse_warp
 from .mask_ranking_loss import Mask_Ranking_Loss
 from .normal_ranking_loss import EdgeguidedNormalRankingLoss
 
-device = torch.device(
-    "cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
 class SSIM(nn.Module):

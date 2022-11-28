@@ -2,17 +2,16 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, RandomSampler
 
 import datasets.custom_transforms as custom_transforms
-from config import get_training_size
 from datasets.train_folders import TrainFolder
 from datasets.validation_folders import ValidationSet
 from datasets.test_folder import TestSet
 
-class VideosDataModule(LightningDataModule):
+class SCDepthDataModule(LightningDataModule):
 
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters()
-        self.training_size = get_training_size(hparams.dataset_name)
+        self.training_size = self.get_training_size(hparams.dataset_name)
         self.load_pseudo_depth = True if (
             hparams.model_version == 'v3') else False
 
@@ -120,5 +119,16 @@ class VideosDataModule(LightningDataModule):
             return len(self.val_dataset)
         elif stage == 'test':
             return len(self.test_dataset)
+        
+    def get_training_size(self, dataset_name):
+        if dataset_name == 'kitti':
+            training_size = [256, 832]
+        elif dataset_name == 'ddad':
+            training_size = [384, 640]
+        elif dataset_name in ['nyu', 'tum', 'bonn']:
+            training_size = [256, 320]
+        else:
+            print('unknown dataset type')
+        return training_size
         
         

@@ -4,15 +4,15 @@ from pytorch_lightning import LightningModule
 
 import losses.loss_functions as LossF
 from losses.inverse_warp import inverse_rotation_warp
-from base_models.DepthNet import DepthNet
-from base_models.PoseNet import PoseNet
-from base_models.RectifyNet import RectifyNet
-from visualization import *
+from models.DepthNet import DepthNet
+from models.PoseNet import PoseNet
+from models.RectifyNet import RectifyNet
+from utils import visualize_depth, visualize_image
 
 
-class SC_DepthV2(LightningModule):
+class SCDepthModuleV2(LightningModule):
     def __init__(self, hparams):
-        super(SC_DepthV2, self).__init__()
+        super(SCDepthModuleV2, self).__init__()
         self.save_hyperparameters()
 
         # model

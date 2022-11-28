@@ -4,14 +4,14 @@ from kornia.geometry.depth import depth_to_normals
 from pytorch_lightning import LightningModule
 
 import losses.loss_functions as LossF
-from base_models.DepthNet import DepthNet
-from base_models.PoseNet import PoseNet
-from visualization import *
+from models.DepthNet import DepthNet
+from models.PoseNet import PoseNet
+from utils import visualize_depth, visualize_image
 
 
-class SC_DepthV3(LightningModule):
+class SCDepthModuleV3(LightningModule):
     def __init__(self, hparams):
-        super(SC_DepthV3, self).__init__()
+        super(SCDepthModuleV3, self).__init__()
         self.save_hyperparameters()
 
         # model
