@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 from datetime import datetime
 from pytorch_lightning import Trainer
 
-from utils import set_seed, mkdir_if_missing, save_args_json, average_weights, load_weights_without_batchnorm, load_weights
+from utils import set_seed, mkdir_if_missing, save_args_json, average_weights, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions
 from configargs import get_configargs
 from sc_depth_module_v1 import SCDepthModuleV1
 from sc_depth_module_v2 import SCDepthModuleV2
@@ -77,6 +77,18 @@ if __name__ == "__main__":
     local_models = [copy.deepcopy(global_model) for _ in range(config_args.fed_train_num_participants)]
     print("Local Models Initialized!")
     
+    # distribute training data
+    print("Computing Dataset Distribution ...")
+    global_data = SCDepthDataModule(sc_depth_hparams)
+    global_data.setup()
+    train_dataset_size = global_data.get_dataset_size("train")
+    sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size, fed_train_num_participants)
+    val_dataset_size = global_data.get_dataset_size("val")
+    sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
+    test_dataset_size = global_data.get_dataset_size("test")
+    sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size, fed_train_num_participants)
+    print("Dataset Distribution Computed!")
+    
     # run federated training
     print("Computing Federated Training ...")
     start_training_round = 0
@@ -90,7 +102,13 @@ if __name__ == "__main__":
         print("Computing Local Updates ...")
         for idx in idxs_participants:
             print(f"Computing Local Update of Participant {idx} ...") 
-            local_data = SCDepthDataModule(sc_depth_hparams) # TODO apply dataset partitioning function
+            local_sample_train_indexes = sample_train_indexes_by_participant[idx]
+            local_sample_val_indexes = sample_val_indexes_by_participant[idx]
+            local_sample_test_indexes = sample_test_indexes_by_participant[idx]
+            local_data = SCDepthDataModule(sc_depth_hparams, 
+                                           selected_train_sample_indexes=local_sample_train_indexes,
+                                           selected_val_sample_indexes=local_sample_val_indexes, 
+                                           selected_test_sample_indexes=local_sample_test_indexes)
             local_model = local_models[idx]
             local_trainer = Trainer(
                 accelerator=device,

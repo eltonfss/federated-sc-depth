@@ -80,3 +80,17 @@ def visualize_depth(depth, cmap=cv2.COLORMAP_JET):
     x_ = Image.fromarray(cv2.applyColorMap(x, cmap))
     x_ = T.ToTensor()(x_)  # (3, H, W)
     return x_
+
+def compute_iid_sample_partitions(dataset_size, num_partitions):
+    """
+    Partition datasets sample indexes as I.I.D.
+    :param dataset_size:
+    :param num_partitions:
+    :return: sample_indexes_by_partition
+    """
+    num_samples = int(dataset_size / num_partitions)
+    sample_indexes_by_partition, available_sample_indexes = {}, [sample_index for sample_index in range(dataset_size)]
+    for partition_index in range(num_partitions):
+        sample_indexes_by_partition[partition_index] = set(np.random.choice(available_sample_indexes, num_samples, replace=False))
+        available_sample_indexes = list(set(available_sample_indexes) - sample_indexes_by_partition[partition_index])
+    return sample_indexes_by_partition

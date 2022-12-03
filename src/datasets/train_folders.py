@@ -45,7 +45,8 @@ class TrainFolder(data.Dataset):
                  skip_frames=1,
                  dataset='kitti',
                  use_frame_index=False,
-                 with_pseudo_depth=False):
+                 with_pseudo_depth=False,
+                 selected_sample_indexes=None):
         np.random.seed(0)
         random.seed(0)
         self.root = Path(root)/'training'
@@ -57,9 +58,9 @@ class TrainFolder(data.Dataset):
         self.k = skip_frames
         self.with_pseudo_depth = with_pseudo_depth
         self.use_frame_index = use_frame_index
-        self.crawl_folders(sequence_length)
+        self.crawl_folders(sequence_length, selected_sample_indexes)
 
-    def crawl_folders(self, sequence_length):
+    def crawl_folders(self, sequence_length, selected_sample_indexes):
         # k skip frames
         sequence_set = []
 
@@ -96,6 +97,8 @@ class TrainFolder(data.Dataset):
                 sequence_set.append(sample)
 
         self.samples = sequence_set
+        if selected_sample_indexes is not None:
+            self.samples = [sequence_set[index] for index in selected_sample_indexes]
 
     def __getitem__(self, index):
         sample = self.samples[index]

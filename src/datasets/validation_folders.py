@@ -12,7 +12,7 @@ def load_sparse_depth(filename):
     return np.array(depth)
 
 
-def crawl_folders(folders_list, dataset='nyu'):
+def crawl_folders(folders_list, dataset='nyu', selected_sample_indexes=None):
     imgs = []
     depths = []
     for folder in folders_list:
@@ -23,6 +23,11 @@ def crawl_folders(folders_list, dataset='nyu'):
             current_depth = sorted((folder/'depth/').files('*.npz'))
         imgs.extend(current_imgs)
         depths.extend(current_depth)
+    
+    if selected_sample_indexes is not None:
+        imgs = [imgs[index] for index in selected_sample_indexes]
+        depths = [depths[index] for index in selected_sample_indexes]
+    
     return imgs, depths
 
 
@@ -37,14 +42,14 @@ class ValidationSet(data.Dataset):
         transform functions must take in a list a images and a numpy array which can be None
     """
 
-    def __init__(self, root, transform=None, dataset='nyu'):
+    def __init__(self, root, transform=None, dataset='nyu', selected_sample_indexes=None):
         self.root = Path(root)/'training'
         scene_list_path = self.root/'val.txt'
         self.scenes = [self.root/folder[:-1]
                        for folder in open(scene_list_path)]
         self.transform = transform
         self.dataset = dataset
-        self.imgs, self.depth = crawl_folders(self.scenes, self.dataset)
+        self.imgs, self.depth = crawl_folders(self.scenes, self.dataset, selected_sample_indexes)
 
     def __getitem__(self, index):
         img = imread(self.imgs[index]).astype(np.float32)
