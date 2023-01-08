@@ -30,7 +30,8 @@ class SCDepthModuleV3(LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics = batch
+        tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
+        #print("SCENEID = ", scene_id)
 
         # network forward
         tgt_depth = self.depth_net(tgt_img)

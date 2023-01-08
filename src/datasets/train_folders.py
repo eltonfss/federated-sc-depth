@@ -58,6 +58,7 @@ class TrainFolder(data.Dataset):
         self.k = skip_frames
         self.with_pseudo_depth = with_pseudo_depth
         self.use_frame_index = use_frame_index
+        self.samples_by_scene_id = {}
         self.crawl_folders(sequence_length, selected_sample_indexes)
 
     def crawl_folders(self, sequence_length, selected_sample_indexes):
@@ -86,7 +87,9 @@ class TrainFolder(data.Dataset):
             sample_index_list = generate_sample_index(
                 len(imgs), self.k, sequence_length)
             for sample_index in sample_index_list:
-                sample = {'intrinsics': intrinsics,
+                scene_id = scene.replace(self.root + "/", "")
+                sample = {'scene_id': scene_id,
+                          'intrinsics': intrinsics,
                           'tgt_img': imgs[sample_index['tgt_idx']]}
                 if self.with_pseudo_depth:
                     sample['tgt_pseudo_depth'] = pseudo_depths[sample_index['tgt_idx']]
@@ -99,6 +102,21 @@ class TrainFolder(data.Dataset):
         self.samples = sequence_set
         if selected_sample_indexes is not None:
             self.samples = [sequence_set[index] for index in selected_sample_indexes]
+        
+        print("BUILD SAMPLES BY SCENE ID MAP")
+        self.samples_by_scene_id = {}
+        for sample in self.samples:
+            scene_id = sample['scene_id']
+            samples = self.get_samples_by_scene_id(scene_id)
+            samples.append(sample)
+            self.samples_by_scene_id[scene_id] = samples
+        print(len(self.samples), "mapped to ", len(list(self.samples_by_scene_id.keys())), "scenes!")
+            
+    def get_samples_by_scene_id(self, scene_id):
+        return self.samples_by_scene_id.get(scene_id, [])
+    
+    def get_scene_ids(self):
+        return list(self.samples_by_scene_id.keys())
 
     def __getitem__(self, index):
         sample = self.samples[index]
@@ -122,11 +140,13 @@ class TrainFolder(data.Dataset):
                 ref_imgs = imgs[1:]
         else:
             intrinsics = np.copy(sample['intrinsics'])
+            
+        scene_id = sample['scene_id']
 
         if self.with_pseudo_depth:
-            return tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics
+            return tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id
         else:
-            return tgt_img, ref_imgs, intrinsics
+            return tgt_img, ref_imgs, intrinsics, scene_id
 
     def __len__(self):
         return len(self.samples)

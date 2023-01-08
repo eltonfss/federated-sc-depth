@@ -124,6 +124,22 @@ class SCDepthDataModule(LightningDataModule):
                           batch_size=self.hparams.hparams.batch_size,
                           pin_memory=False)
     
+    def get_scene_ids(self, stage):
+        if stage == "train":
+            return self.train_dataset.get_scene_ids()
+        elif stage == "val":
+            return self.val_dataset.get_scene_ids()
+        elif stage == "test":
+            return self.test_dataset.get_scene_ids()
+        
+    def get_samples_by_scene_id(self, stage, scene_id):
+        if stage == "train":
+            return self.train_dataset.get_samples_by_scene_id(scene_id)
+        elif stage == "val":
+            return self.val_dataset.get_samples_by_scene_id(scene_id)
+        elif stage == "test":
+            return self.test_dataset.get_samples_by_scene_id(scene_id)
+    
     def get_dataset_size(self, stage):
         if stage == 'train':
             return len(self.train_dataset)

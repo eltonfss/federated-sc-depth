@@ -82,6 +82,10 @@ if __name__ == "__main__":
     global_data = SCDepthDataModule(sc_depth_hparams)
     global_data.setup()
     train_dataset_size = global_data.get_dataset_size("train")
+    train_scene_ids = global_data.get_scene_ids("train")
+    print(len(train_scene_ids), "TRAIN SCENE IDS FOUND")
+    for scene_id in train_scene_ids:
+        print(len(global_data.get_samples_by_scene_id("train", scene_id)), "SAMPLES FOUND FOR SCENE ID", scene_id)
     sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size, fed_train_num_participants)
     val_dataset_size = global_data.get_dataset_size("val")
     sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
