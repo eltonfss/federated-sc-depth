@@ -81,16 +81,53 @@ if __name__ == "__main__":
     print("Computing Dataset Distribution ...")
     global_data = SCDepthDataModule(sc_depth_hparams)
     global_data.setup()
-    train_dataset_size = global_data.get_dataset_size("train")
-    train_scene_ids = global_data.get_scene_ids("train")
-    print(len(train_scene_ids), "TRAIN SCENE IDS FOUND")
-    for scene_id in train_scene_ids:
-        print(len(global_data.get_samples_by_scene_id("train", scene_id)), "SAMPLES FOUND FOR SCENE ID", scene_id)
-    sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size, fed_train_num_participants)
-    val_dataset_size = global_data.get_dataset_size("val")
-    sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
-    test_dataset_size = global_data.get_dataset_size("test")
-    sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size, fed_train_num_participants)
+
+    if config_args.fed_train_by_drive:
+        train_drive_ids = global_data.get_drive_ids("train")
+        print(len(train_drive_ids), "TRAIN DRIVE IDS FOUND") 
+        
+        # validate number of participants
+        if fed_train_num_participants > len(train_drive_ids):
+            raise "fed_train_num_participants cannot be greather than the number of train drive ids availabe in the dataset!"
+        
+        sample_train_indexes_by_participant = {}
+        sample_val_indexes_by_participant = {}
+        sample_test_indexes_by_participant = {}
+        for participant_index, drive_id in enumerate(train_drive_ids):
+
+            # train
+            train_drive_samples = global_data.get_samples_by_drive_id("train", drive_id)
+            print(len(train_drive_samples), "TRAIN SAMPLES FOUND FOR DRIVE ID", drive_id)
+            train_drive_sample_indexes = [sample['sourceIndex'] for sample in train_drive_samples]
+            sample_train_indexes_by_participant[participant_index] = train_drive_sample_indexes
+
+            # val
+            val_dataset_size = global_data.get_dataset_size("val")
+            sample_val_indexes_by_participant[participant_index] = [i for i in range(val_dataset_size)]
+
+            # test
+            test_dataset_size = global_data.get_dataset_size("test")
+            sample_test_indexes_by_participant[participant_index] = [i for i in range(test_dataset_size)]
+
+        # check for duplicates
+        intersection_set = set()
+        list_of_sets = [set(value) for value in sample_train_indexes_by_participant.values()]
+        for i, value_set_a in enumerate(list_of_sets): 
+            for j, value_set_b in enumerate(list_of_sets): 
+                if i == j: continue           
+                intersection = value_set_a.intersection(value_set_b)
+                intersection_set = intersection_set.union(intersection)
+        if len(intersection_set) > 0:
+            print(len(intersection_set), "duplicates found!")
+            raise "Dataset Distribution Error!"
+        
+    else:
+        train_dataset_size = global_data.get_dataset_size("train")
+        val_dataset_size = global_data.get_dataset_size("val")
+        test_dataset_size = global_data.get_dataset_size("test")
+        sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size, fed_train_num_participants)
+        sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
+        sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size, fed_train_num_participants)
     print("Dataset Distribution Computed!")
     
     # run federated training

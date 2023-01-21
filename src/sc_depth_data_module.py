@@ -2,9 +2,9 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, RandomSampler
 
 import datasets.custom_transforms as custom_transforms
-from datasets.train_folders import TrainFolder
-from datasets.validation_folders import ValidationSet
-from datasets.test_folder import TestSet
+from datasets.trainset import TrainSet
+from datasets.validationset import ValidationSet
+from datasets.testset import TestSet
 
 class SCDepthDataModule(LightningDataModule):
 
@@ -46,7 +46,7 @@ class SCDepthDataModule(LightningDataModule):
 
     def setup(self, stage=None):
 
-        self.train_dataset = TrainFolder(
+        self.train_dataset = TrainSet(
             self.hparams.hparams.dataset_dir,
             transform=self.train_transform,
             sequence_length=self.hparams.hparams.sequence_length,
@@ -139,7 +139,29 @@ class SCDepthDataModule(LightningDataModule):
             return self.val_dataset.get_samples_by_scene_id(scene_id)
         elif stage == "test":
             return self.test_dataset.get_samples_by_scene_id(scene_id)
+        
+    def get_drive_ids(self, stage):
+        scene_ids_by_drive_id = self.get_scene_ids_by_drive_ids(stage)
+        return list(scene_ids_by_drive_id.keys())
     
+    def get_scene_ids_by_drive_ids(self, stage):
+        scene_ids = self.get_scene_ids(stage)
+        scene_ids_by_drive_id = dict()
+        for scene_id in scene_ids:
+            drive_id = scene_id.split("_sync_")[0]
+            drive_scene_ids = scene_ids_by_drive_id.get(drive_id, list())
+            drive_scene_ids.append(scene_id)
+            scene_ids_by_drive_id[drive_id] = drive_scene_ids
+        return scene_ids_by_drive_id
+    
+    def get_samples_by_drive_id(self, stage, drive_id):
+        scene_ids = self.get_scene_ids_by_drive_ids(stage)[drive_id]
+        drive_samples = list()
+        for scene_id in scene_ids:
+            scene_samples = self.get_samples_by_scene_id(stage, scene_id)
+            drive_samples.extend(scene_samples)
+        return drive_samples
+        
     def get_dataset_size(self, stage):
         if stage == 'train':
             return len(self.train_dataset)

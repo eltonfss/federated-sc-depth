@@ -1,4 +1,4 @@
-import torch.utils.data as data
+from datasets.dataset import DataSet
 import numpy as np
 from imageio.v2 import imread
 from path import Path
@@ -31,7 +31,7 @@ def crawl_folders(folders_list, dataset='nyu', selected_sample_indexes=None):
     return imgs, depths
 
 
-class ValidationSet(data.Dataset):
+class ValidationSet(DataSet):
     """A sequence data loader where the files are arranged in this way:
         root/scene_1/0000000.jpg
         root/scene_1/depth/0000000.npy or 0000000.npz or 0000000.png
@@ -43,6 +43,7 @@ class ValidationSet(data.Dataset):
     """
 
     def __init__(self, root, transform=None, dataset='nyu', selected_sample_indexes=None):
+        super(DataSet, self).__init__()
         self.root = Path(root)/'training'
         scene_list_path = self.root/'val.txt'
         self.scenes = [self.root/folder[:-1]
@@ -50,6 +51,15 @@ class ValidationSet(data.Dataset):
         self.transform = transform
         self.dataset = dataset
         self.imgs, self.depth = crawl_folders(self.scenes, self.dataset, selected_sample_indexes)
+        self.samples = []
+        for index, img in enumerate(self.imgs):
+            sample = {
+                'scene_id': img.split("_sync_")[0].split("/")[-1],
+                'img': img,
+                'depth': self.depth[index]
+            }
+            self.samples.append(sample)
+        self.build_samples_by_scene_id_map(self.samples)
 
     def __getitem__(self, index):
         img = imread(self.imgs[index]).astype(np.float32)

@@ -1,4 +1,4 @@
-import torch.utils.data as data
+from datasets.dataset import DataSet
 import numpy as np
 from imageio.v2 import imread
 from path import Path
@@ -27,17 +27,18 @@ def crawl_folder(folder, dataset='nyu', selected_sample_indexes=None):
     if selected_sample_indexes is not None:
         imgs = [imgs[index] for index in selected_sample_indexes]
         depths = [depths[index] for index in selected_sample_indexes]
-        
+
     return imgs, depths
 
 
-class TestSet(data.Dataset):
+class TestSet(DataSet):
     """A sequence data loader where the files are arranged in this way:
         root/color/0000000.png
         root/depth/0000000.npz or png
     """
 
     def __init__(self, root, transform=None, dataset='nyu', selected_sample_indexes=None):
+        super(DataSet, self).__init__()
         self.root = Path(root)/'testing'
         self.transform = transform
         self.dataset = dataset

@@ -1,4 +1,4 @@
-import torch.utils.data as data
+from datasets.dataset import DataSet
 import numpy as np
 from imageio import imread
 from path import Path
@@ -27,7 +27,7 @@ def generate_sample_index(num_frames, skip_frames, sequence_length):
     return sample_index_list
 
 
-class TrainFolder(data.Dataset):
+class TrainSet(DataSet):
     """A sequence data loader where the files are arranged in this way:
         root/scene_1/0000000.jpg
         root/scene_1/0000001.jpg
@@ -47,6 +47,7 @@ class TrainFolder(data.Dataset):
                  use_frame_index=False,
                  with_pseudo_depth=False,
                  selected_sample_indexes=None):
+        super(DataSet, self).__init__()
         np.random.seed(0)
         random.seed(0)
         self.root = Path(root)/'training'
@@ -58,7 +59,6 @@ class TrainFolder(data.Dataset):
         self.k = skip_frames
         self.with_pseudo_depth = with_pseudo_depth
         self.use_frame_index = use_frame_index
-        self.samples_by_scene_id = {}
         self.crawl_folders(sequence_length, selected_sample_indexes)
 
     def crawl_folders(self, sequence_length, selected_sample_indexes):
@@ -97,26 +97,15 @@ class TrainFolder(data.Dataset):
                 sample['ref_imgs'] = []
                 for j in sample_index['ref_idx']:
                     sample['ref_imgs'].append(imgs[j])
+                
+                sample['sourceIndex'] = len(sequence_set)
                 sequence_set.append(sample)
 
         self.samples = sequence_set
         if selected_sample_indexes is not None:
             self.samples = [sequence_set[index] for index in selected_sample_indexes]
         
-        print("BUILD SAMPLES BY SCENE ID MAP")
-        self.samples_by_scene_id = {}
-        for sample in self.samples:
-            scene_id = sample['scene_id']
-            samples = self.get_samples_by_scene_id(scene_id)
-            samples.append(sample)
-            self.samples_by_scene_id[scene_id] = samples
-        print(len(self.samples), "mapped to ", len(list(self.samples_by_scene_id.keys())), "scenes!")
-            
-    def get_samples_by_scene_id(self, scene_id):
-        return self.samples_by_scene_id.get(scene_id, [])
-    
-    def get_scene_ids(self):
-        return list(self.samples_by_scene_id.keys())
+        self.build_samples_by_scene_id_map(self.samples)
 
     def __getitem__(self, index):
         sample = self.samples[index]
