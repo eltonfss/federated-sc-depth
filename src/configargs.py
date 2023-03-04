@@ -60,6 +60,7 @@ def get_configargs():
     parser.add_argument("--fed_train_by_drive", type=int, default=0, help="Distributed dataset between federated participants based on the drives. Each participant only sees the data from one of the drives (only tested with KITTI)")
     parser.add_argument("--fed_train_x_noniid", action="store_true", help="Use non i.i.d x distribution between federated participants")
     parser.add_argument("--fed_train_average_without_bn", action="store_true", help="do not load the weights for the batchnorm layers")
+    parser.add_argument("--fed_train_participant_order", type=str, help="Indicate if participants should be ordered randomnly or sequentially during federated training", default="random")
     
     # pytorch
     parser.add_argument("--num_workers", type=int, default=4, help="the number of dataloader workers")

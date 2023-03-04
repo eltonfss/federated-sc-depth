@@ -33,6 +33,7 @@ if __name__ == "__main__":
     log_every_n_steps = config_args.log_every_n_steps
     fed_train_num_participants_per_round = max(int(fed_train_frac_participants_per_round * fed_train_num_participants), 1)
     load_weight_function = load_weights_without_batchnorm if config_args.fed_train_average_without_bn else load_weights
+    fed_train_participant_order = config_args.fed_train_participant_order
     
     # set seed
     set_seed(config_args.seed)
@@ -141,7 +142,16 @@ if __name__ == "__main__":
 
         # update each local model
         print("Computing Local Updates ...")
-        for idx in idxs_participants:
+        if fed_train_participant_order == "sequential":
+            idxs_participants.sort()
+            print("Local Updates of Participants will be computed in Sequential Order!")
+        elif fed_train_participant_order == "random":
+            print("Local Updates of Participants will be computed in Random Order!")
+        else:
+            raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
+                            f"Only 'sequential' and 'random' are supported!")
+        print(f"Participant Local Update Sequence is: {idxs_participants}")
+        for idx in idxs_participants: 
             print(f"Computing Local Update of Participant {idx} ...") 
             local_sample_train_indexes = sample_train_indexes_by_participant[idx]
             local_sample_val_indexes = sample_val_indexes_by_participant[idx]
