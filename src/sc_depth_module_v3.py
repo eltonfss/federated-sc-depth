@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import torch
 from kornia.geometry.depth import depth_to_normals
 from pytorch_lightning import LightningModule
@@ -17,9 +18,9 @@ class SCDepthModuleV3(LightningModule):
         # model
         self.depth_net = DepthNet(self.hparams.hparams.resnet_layers)
         self.pose_net = PoseNet()
-        self.epoch_losses = []
-        
-    
+        self.val_epoch_losses = []
+        self.train_epoch_losses = []
+
     def configure_optimizers(self):
         optim_params = [
             {'params': self.depth_net.parameters(), 'lr': self.hparams.hparams.lr},
@@ -27,7 +28,6 @@ class SCDepthModuleV3(LightningModule):
         ]
         optimizer = torch.optim.Adam(optim_params)
         return [optimizer]
-
 
     def training_step(self, batch, batch_idx):
         tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
@@ -54,7 +54,6 @@ class SCDepthModuleV3(LightningModule):
         loss_1, loss_2, dynamic_mask = LossF.photo_and_geometry_loss(tgt_img, ref_imgs, tgt_depth, ref_depths,
                                                     intrinsics, poses, poses_inv, self.hparams.hparams)
 
-
         # normal_l1_loss
         loss_3 = (tgt_normal-tgt_pseudo_normal).abs().mean()
 
@@ -73,6 +72,18 @@ class SCDepthModuleV3(LightningModule):
         self.log('train/normal_l1_loss', loss_3)
         self.log('train/mask_ranking_loss', loss_4)
         self.log('train/normal_ranking_loss', loss_5)
+        
+        #print(f"Batch: {batch_idx}, "
+        #      f"Photometric Loss (pl): {loss_1}, "
+        #      f"Geometric Loss (gl): {loss_2}, "
+        #      f"Normal L1 Loss (nl): {loss_3}, "
+        #      f"Mask Ranking Loss (mrl): {loss_4}, "
+        #      f"Normal Ranking Loss (nrl): {loss_5}, "
+        #      f"Weighted Loss ({w1}*pl + {w2}*gl + {w3}*nl + {w4}*mrl + {w5}*nrl): {loss}")
+        
+        if math.isinf(loss) or math.isnan(loss) or torch.isnan(loss) or torch.isinf(loss):
+            print("Loss is invalid! Will skip this training step and ignore its weight updates!")
+            return None
 
         return loss
     
@@ -116,6 +127,9 @@ class SCDepthModuleV3(LightningModule):
     def test_step(self, batch, batch_idx):
         return self._shared_eval_step(batch, batch_idx, 'test')
 
+    def training_epoch_end(self, outputs):
+        mean_loss = torch.mean(torch.tensor([x['loss'] for x in outputs]))
+        self.train_epoch_losses.append(mean_loss)
 
     def validation_epoch_end(self, outputs):
 
@@ -132,7 +146,7 @@ class SCDepthModuleV3(LightningModule):
             self.log('val/a1', mean_a1, on_epoch=True)
             self.log('val/a2', mean_a2, on_epoch=True)
             self.log('val/a3', mean_a3, on_epoch=True)
-            self.epoch_losses.append(mean_rel)
+            self.val_epoch_losses.append(mean_rel)
 
         elif self.hparams.hparams.val_mode == 'photo':
             mean_pl = np.array([x['photo_loss'] for x in outputs]).mean()

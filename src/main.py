@@ -137,8 +137,8 @@ if __name__ == "__main__":
     for training_round in tqdm(range(start_training_round, fed_train_num_rounds)):
         print(f"\n | Federated Training Round : {training_round} | Global Model : {model_time}\n")
         
-        local_weights, local_losses = [], []
-        idxs_participants = np.random.choice(range(fed_train_num_participants), fed_train_num_participants_per_round, replace=False)
+        local_weights, local_train_losses, local_val_losses = [], [], []
+        idxs_participants = list(np.random.choice(range(fed_train_num_participants), fed_train_num_participants_per_round, replace=False))
 
         # update each local model
         print("Computing Local Updates ...")
@@ -169,13 +169,34 @@ if __name__ == "__main__":
                 log_every_n_steps=log_every_n_steps
             )
             local_trainer.fit(local_model, local_data)
-            avg_local_loss = sum(local_model.epoch_losses) / len(local_model.epoch_losses)
-            local_weights.append(copy.deepcopy(local_model.state_dict()))
-            local_losses.append(copy.deepcopy(avg_local_loss))
-            print(f"Local Update of Participant {idx} Computed!") 
+            train_epoch_losses = local_model.train_epoch_losses
+            final_local_loss_train = train_epoch_losses[-1] if len(train_epoch_losses) > 0 else None
+            val_epoch_losses = local_model.val_epoch_losses
+            final_local_loss_val = val_epoch_losses[-1] if len(val_epoch_losses) > 0 else None
+
+            local_train_loss = copy.deepcopy(final_local_loss_train)
+            ignore = False
+            if local_train_loss is None or math.isnan(local_train_loss) or math.isinf(local_train_loss):
+                print(f"Local Train Loss of Participant {idx} in Round {training_round} is invalid!")
+                ignore = True
+            local_val_loss = copy.deepcopy(final_local_loss_val)
+            if local_val_loss is None or math.isnan(local_val_loss) or math.isinf(local_val_loss):
+                print(f"Local Val Loss of Participant {idx} in Round {training_round} is invalid!")
+                ignore = True
+            if ignore:
+                print(f"Ignoring Local Update of Participant {idx} in Round {training_round}")
+            else:
+                local_weights.append(copy.deepcopy(local_model.state_dict()))
+                local_train_losses.append(local_train_loss)
+                local_val_losses.append(local_val_loss)
+                print(f"Local Update of Participant {idx} Computed!")
+        
+        # compute performance metrics
         print("Local Updates Computed!")
-        avg_local_loss = sum(local_losses) / len(local_losses)
-        print(f"Average Local Loss = {avg_local_loss}")
+        avg_local_loss_train = sum(local_train_losses) / len(local_train_losses)
+        avg_local_loss_val = sum(local_val_losses) / len(local_val_losses)
+        print(f"Average Local Training Loss in Round {training_round} = {avg_local_loss_train}")
+        print(f"Average Local Validation Loss in Round {training_round} = {avg_local_loss_val}")
 
         # update global weights
         print(f"Computing Global Update ...")
