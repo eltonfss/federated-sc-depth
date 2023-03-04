@@ -161,13 +161,20 @@ if __name__ == "__main__":
                                            selected_val_sample_indexes=local_sample_val_indexes, 
                                            selected_test_sample_indexes=local_sample_test_indexes)
             local_model = local_models[idx]
-            local_trainer = Trainer(
+            trainer_config = dict(
                 accelerator=device,
-                max_epochs=fed_train_num_local_epochs,
-                limit_train_batches=fed_train_num_local_train_batches,
-                limit_val_batches=fed_train_num_local_val_batches,
                 log_every_n_steps=log_every_n_steps
             )
+            
+            if fed_train_num_local_epochs > 0:
+                trainer_config['max_epochs'] = fed_train_num_local_epochs
+            if fed_train_num_local_train_batches > 0:
+                trainer_config['limit_train_batches'] = fed_train_num_local_train_batches
+            if fed_train_num_local_val_batches > 0:
+                trainer_config['limit_val_batches'] = fed_train_num_local_val_batches
+                
+            print("Local Trainer Config", trainer_config)
+            local_trainer = Trainer(**trainer_config)
             local_trainer.fit(local_model, local_data)
             train_epoch_losses = local_model.train_epoch_losses
             final_local_loss_train = train_epoch_losses[-1] if len(train_epoch_losses) > 0 else None

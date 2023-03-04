@@ -99,9 +99,13 @@ class SCDepthDataModule(LightningDataModule):
 
     def train_dataloader(self):
         print("train num_workers", self.hparams.hparams.num_workers)
-        sampler = RandomSampler(self.train_dataset,
-                                replacement=True,
-                                num_samples=self.hparams.hparams.batch_size * self.hparams.hparams.epoch_size)
+        random_sampler_config = dict(data_source=self.train_dataset, replacement=True)
+        if self.hparams.hparams.epoch_size > 0:
+            random_sampler_config['num_samples'] = self.hparams.hparams.batch_size * self.hparams.hparams.epoch_size
+        else:
+            random_sampler_config['num_samples'] = len(self.train_dataset)
+        print("Random Sampler Config:", random_sampler_config)
+        sampler = RandomSampler(**random_sampler_config)
         return DataLoader(self.train_dataset,
                           sampler=sampler,
                           num_workers=self.hparams.hparams.num_workers,
