@@ -6,18 +6,22 @@ from datasets.trainset import TrainSet
 from datasets.validationset import ValidationSet
 from datasets.testset import TestSet
 
+
 class SCDepthDataModule(LightningDataModule):
 
-    def __init__(self, hparams, 
+    def __init__(self, hparams,
                  selected_train_sample_indexes=None,
                  selected_val_sample_indexes=None,
                  selected_test_sample_indexes=None,
-                ):
+                 ):
         super().__init__()
+        self.train_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
         self.save_hyperparameters()
         self.training_size = self.get_training_size(hparams.dataset_name)
         self.load_pseudo_depth = True if (
-            hparams.model_version == 'v3') else False
+                hparams.model_version == 'v3') else False
         self.selected_train_sample_indexes = selected_train_sample_indexes
         self.selected_val_sample_indexes = selected_val_sample_indexes
         self.selected_test_sample_indexes = selected_test_sample_indexes
@@ -35,7 +39,7 @@ class SCDepthDataModule(LightningDataModule):
             custom_transforms.ArrayToTensor(),
             custom_transforms.Normalize()]
         )
-        self.test_transform =  custom_transforms.Compose([
+        self.test_transform = custom_transforms.Compose([
             custom_transforms.RescaleTo(self.training_size),
             custom_transforms.ArrayToTensor(),
             custom_transforms.Normalize()]
@@ -72,7 +76,7 @@ class SCDepthDataModule(LightningDataModule):
             print("depth validation mode")
         elif self.hparams.hparams.val_mode == 'photo':
             print("photo validation mode")
-            self.val_dataset = TrainFolder(
+            self.val_dataset = TrainSet(
                 self.hparams.hparams.dataset_dir,
                 transform=self.valid_transform,
                 sequence_length=self.hparams.hparams.sequence_length,
@@ -81,7 +85,7 @@ class SCDepthDataModule(LightningDataModule):
                 with_pseudo_depth=self.load_pseudo_depth,
                 selected_sample_indexes=self.selected_val_sample_indexes
             )
-            self.test_dataset = TrainFolder(
+            self.test_dataset = TrainSet(
                 self.hparams.hparams.dataset_dir,
                 transform=self.test_transform,
                 sequence_length=self.hparams.hparams.sequence_length,
@@ -92,7 +96,7 @@ class SCDepthDataModule(LightningDataModule):
             )
         else:
             print("wrong validation mode")
-            
+
         print('{} samples found for training'.format(len(self.train_dataset)))
         print('{} samples found for validation'.format(len(self.val_dataset)))
         print('{} samples found in test'.format(len(self.test_dataset)))
@@ -127,7 +131,7 @@ class SCDepthDataModule(LightningDataModule):
                           num_workers=self.hparams.hparams.num_workers,
                           batch_size=self.hparams.hparams.batch_size,
                           pin_memory=False)
-    
+
     def get_scene_ids(self, stage):
         if stage == "train":
             return self.train_dataset.get_scene_ids()
@@ -135,7 +139,7 @@ class SCDepthDataModule(LightningDataModule):
             return self.val_dataset.get_scene_ids()
         elif stage == "test":
             return self.test_dataset.get_scene_ids()
-        
+
     def get_samples_by_scene_id(self, stage, scene_id):
         if stage == "train":
             return self.train_dataset.get_samples_by_scene_id(scene_id)
@@ -143,11 +147,11 @@ class SCDepthDataModule(LightningDataModule):
             return self.val_dataset.get_samples_by_scene_id(scene_id)
         elif stage == "test":
             return self.test_dataset.get_samples_by_scene_id(scene_id)
-        
+
     def get_drive_ids(self, stage):
         scene_ids_by_drive_id = self.get_scene_ids_by_drive_ids(stage)
         return list(scene_ids_by_drive_id.keys())
-    
+
     def get_scene_ids_by_drive_ids(self, stage):
         scene_ids = self.get_scene_ids(stage)
         scene_ids_by_drive_id = dict()
@@ -157,7 +161,7 @@ class SCDepthDataModule(LightningDataModule):
             drive_scene_ids.append(scene_id)
             scene_ids_by_drive_id[drive_id] = drive_scene_ids
         return scene_ids_by_drive_id
-    
+
     def get_samples_by_drive_id(self, stage, drive_id):
         scene_ids = self.get_scene_ids_by_drive_ids(stage)[drive_id]
         drive_samples = list()
@@ -165,7 +169,7 @@ class SCDepthDataModule(LightningDataModule):
             scene_samples = self.get_samples_by_scene_id(stage, scene_id)
             drive_samples.extend(scene_samples)
         return drive_samples
-        
+
     def get_dataset_size(self, stage):
         if stage == 'train':
             return len(self.train_dataset)
@@ -173,8 +177,10 @@ class SCDepthDataModule(LightningDataModule):
             return len(self.val_dataset)
         elif stage == 'test':
             return len(self.test_dataset)
-        
-    def get_training_size(self, dataset_name):
+
+    @staticmethod
+    def get_training_size(dataset_name):
+        training_size = None
         if dataset_name == 'kitti':
             training_size = [256, 832]
         elif dataset_name == 'ddad':
@@ -184,5 +190,3 @@ class SCDepthDataModule(LightningDataModule):
         else:
             print('unknown dataset type')
         return training_size
-        
-        
