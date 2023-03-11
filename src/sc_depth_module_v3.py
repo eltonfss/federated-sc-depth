@@ -31,7 +31,6 @@ class SCDepthModuleV3(LightningModule):
 
     def training_step(self, batch, batch_idx):
         tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
-        #print("SCENEID = ", scene_id)
 
         # network forward
         tgt_depth = self.depth_net(tgt_img)
@@ -73,14 +72,6 @@ class SCDepthModuleV3(LightningModule):
         self.log('train/mask_ranking_loss', loss_4)
         self.log('train/normal_ranking_loss', loss_5)
         
-        #print(f"Batch: {batch_idx}, "
-        #      f"Photometric Loss (pl): {loss_1}, "
-        #      f"Geometric Loss (gl): {loss_2}, "
-        #      f"Normal L1 Loss (nl): {loss_3}, "
-        #      f"Mask Ranking Loss (mrl): {loss_4}, "
-        #      f"Normal Ranking Loss (nrl): {loss_5}, "
-        #      f"Weighted Loss ({w1}*pl + {w2}*gl + {w3}*nl + {w4}*mrl + {w5}*nrl): {loss}")
-        
         if math.isinf(loss) or math.isnan(loss) or torch.isnan(loss) or torch.isinf(loss):
             print("Loss is invalid! Will skip this training step and ignore its weight updates!")
             return None
@@ -88,7 +79,10 @@ class SCDepthModuleV3(LightningModule):
         return loss
     
     def _shared_eval_step(self, batch, batch_idx, stage):
-        
+
+        errs = None
+        tgt_img = None
+        tgt_depth = None
         if self.hparams.hparams.val_mode == 'depth':
             tgt_img, gt_depth = batch
             tgt_depth = self.depth_net(tgt_img)
