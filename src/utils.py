@@ -28,6 +28,15 @@ def save_args_json(path, args):
         args = vars(args)
         json.dump(args, f, indent=4, sort_keys=True)
 
+
+def save_federated_training_state_json(path, federated_training_state):
+    mkdir_if_missing(path)
+    arg_json = os.path.join(path, "federated_training_state.json")
+    with open(arg_json, "w") as f:
+        federated_training_state['config_args'] = vars(federated_training_state['config_args'])
+        json.dump(federated_training_state, f, indent=4, sort_keys=True)
+
+
 def average_weights(w, avg_weights=None):
     """
     Returns the average of the weights.
