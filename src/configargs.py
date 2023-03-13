@@ -61,6 +61,8 @@ def get_configargs():
     parser.add_argument("--fed_train_x_noniid", action="store_true", help="Use non i.i.d x distribution between federated participants")
     parser.add_argument("--fed_train_average_without_bn", action="store_true", help="do not load the weights for the batchnorm layers")
     parser.add_argument("--fed_train_participant_order", type=str, help="Indicate if participants should be ordered randomnly or sequentially during federated training", default="random")
+    parser.add_argument('--fed_train_state_save_dir', type=str, help='output federation training state dirpath')
+
     
     # pytorch
     parser.add_argument("--num_workers", type=int, default=4, help="the number of dataloader workers")

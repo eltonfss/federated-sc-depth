@@ -33,8 +33,7 @@ def save_federated_training_state_json(path, federated_training_state):
     mkdir_if_missing(path)
     arg_json = os.path.join(path, "federated_training_state.json")
     with open(arg_json, "w") as f:
-        federated_training_state['config_args'] = vars(federated_training_state['config_args'])
-        json.dump(federated_training_state, f, indent=4, sort_keys=True)
+        json.dump(federated_training_state, f, sort_keys=True)
 
 
 def average_weights(w, avg_weights=None):
@@ -90,6 +89,7 @@ def visualize_depth(depth, cmap=cv2.COLORMAP_JET):
     x_ = T.ToTensor()(x_)  # (3, H, W)
     return x_
 
+
 def compute_iid_sample_partitions(dataset_size, num_partitions):
     """
     Partition datasets sample indexes as I.I.D.
@@ -100,6 +100,8 @@ def compute_iid_sample_partitions(dataset_size, num_partitions):
     num_samples = int(dataset_size / num_partitions)
     sample_indexes_by_partition, available_sample_indexes = {}, [sample_index for sample_index in range(dataset_size)]
     for partition_index in range(num_partitions):
-        sample_indexes_by_partition[partition_index] = set(np.random.choice(available_sample_indexes, num_samples, replace=False))
-        available_sample_indexes = list(set(available_sample_indexes) - sample_indexes_by_partition[partition_index])
+        sample_indexes_by_partition[partition_index] = set(np.random.choice(available_sample_indexes, num_samples,
+                                                                            replace=False))
+        sample_indexes_by_partition[partition_index] = [int(i) for i in sample_indexes_by_partition[partition_index]]
+        available_sample_indexes = list(set(available_sample_indexes) - set(sample_indexes_by_partition[partition_index]))
     return sample_indexes_by_partition

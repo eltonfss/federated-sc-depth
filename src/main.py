@@ -12,7 +12,7 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, save_federated_training_state_json, save_args_json, average_weights, \
-    load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions
+    load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     # parse config args
     config_args = get_configargs()
-    federated_training_state['config_args'] = config_args
+    federated_training_state['config_args'] = vars(config_args)
     device = "cuda" if torch.cuda.is_available() and config_args.gpu else "cpu"
     federated_training_state['device'] = device
     fed_train_num_rounds = config_args.fed_train_num_rounds
@@ -43,15 +43,20 @@ if __name__ == "__main__":
     set_seed(config_args.seed)
 
     # setup logger
-    federated_training_state['start_time'] = start_time = time.time()
-    federated_training_state['start_datetime'] = start_datetime = datetime.now()
+    start_time = time.time()
+    federated_training_state['start_time'] = str(start_time)
+    start_datetime = datetime.now()
+    federated_training_state['start_datetime'] = str(start_datetime)
     federated_training_state['process_id'] = process_id = str(os.getpid())
     model_time = start_datetime.strftime("%d_%m_%Y_%H:%M:%S") + "_{}".format(process_id)
-    federated_training_state['model_output_dir'] = model_output_dir = "save/" + model_time
+    output_dir = config_args.fed_train_state_save_dir
+    mkdir_if_missing(output_dir)
+    federated_training_state['model_output_dir'] = model_output_dir = os.path.join(output_dir, model_time)
+    mkdir_if_missing(model_output_dir)
     config_args.model_time = model_time
     save_args_json(model_output_dir, config_args)
     global_logger = SummaryWriter(os.path.join(model_output_dir, "tensorboard"))
-    config_args.start_time = start_datetime
+    config_args.start_time = str(start_datetime)
 
     # persist federated training state (Federation Checkpoint)
     save_federated_training_state_json(model_output_dir, federated_training_state)
@@ -180,14 +185,16 @@ if __name__ == "__main__":
     save_federated_training_state_json(model_output_dir, federated_training_state)
 
     for training_round in tqdm(range(start_training_round, fed_train_num_rounds)):
+        training_round = str(training_round)
         global_update_start_time = time.time()
         print(f"\n | Federated Training Round : {training_round} | Global Model : {model_time}\n")
 
         local_weights_by_participant = {}
-        local_train_losses_by_participant = local_train_loss_by_round_by_participant[training_round]
-        local_val_losses_by_participant = local_val_loss_by_round_by_participant[training_round]
+        local_train_losses_by_participant = local_train_loss_by_round_by_participant[training_round] = {}
+        local_val_losses_by_participant = local_val_loss_by_round_by_participant[training_round] = {}
         participants_ids = list(np.random.choice(range(fed_train_num_participants),
                                                  fed_train_num_participants_per_round, replace=False))
+        participants_ids = [int(participant_id) for participant_id in participants_ids]
         num_participants_by_round[training_round] = len(participants_ids)
         local_update_time_by_participant = local_update_time_by_round_by_participant[training_round] = {}
         local_model_bytes_by_participant = local_model_bytes_by_participant_by_round[training_round] = {}
@@ -262,7 +269,7 @@ if __name__ == "__main__":
                 print(f"Ignoring Local Update of Participant {participant_id} in Round {training_round}")
             else:
                 # log local losses
-                local_train_losses_by_participant[participant_id] = local_train_loss
+                local_train_losses_by_participant[participant_id] = local_train_loss.tolist()
                 print(f"Local Train Loss of Participant {participant_id} in Round {training_round}: {local_train_loss}")
                 local_val_losses_by_participant[participant_id] = local_val_loss
                 print(f"Local Val Loss of Participant {participant_id} in Round {training_round}: {local_val_loss}")
@@ -272,8 +279,8 @@ if __name__ == "__main__":
                 local_weights_by_participant[participant_id] = local_weights_of_participant
                 local_model_bytes_of_participant = sys.getsizeof(local_weights_of_participant)
                 local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
-                print(f"Local Model Bytes of Participant {participant_id} in Round {training_round}: "
-                      f"{local_model_bytes_of_participant}")
+                print(f"Local Model Size of Participant {participant_id} in Round {training_round}: "
+                      f"{local_model_bytes_of_participant} Bytes")
 
                 # TODO log local model checkpoint coordinates for restore purposes
 
@@ -281,8 +288,8 @@ if __name__ == "__main__":
 
             # log local update time
             local_update_elapsed_time = time.time() - local_update_start_time
-            local_update_time_by_participant[participant_id] = local_update_elapsed_time
-            print("\n Local Update Took: {0:0.4f}".format(local_update_elapsed_time))
+            local_update_time_by_participant[participant_id] = float(local_update_elapsed_time)
+            print("Local Update Took: {0:0.4f} seconds".format(local_update_elapsed_time))
 
             # persist federated training state (Federation Checkpoint)
             save_federated_training_state_json(model_output_dir, federated_training_state)
@@ -300,7 +307,7 @@ if __name__ == "__main__":
         print(f"Average Local Training Loss in Round {training_round} = {avg_local_loss_train}")
         print(f"Average Local Validation Loss in Round {training_round} = {avg_local_loss_val}")
         print(f"Average Local Update Times in Round {training_round} = {avg_local_update_time}")
-        print(f"Average Local Model Bytes in Round {training_round} = {avg_local_model_bytes}")
+        print(f"Average Local Model Size in Round {training_round} = {avg_local_model_bytes} Bytes")
 
         # update global weights
         print(f"Computing Global Update ...")
@@ -314,26 +321,37 @@ if __name__ == "__main__":
         # log global model weights
         global_model_bytes = sys.getsizeof(global_weights)
         global_model_bytes_by_round[training_round] = global_model_bytes
-        print(f"Updated Global Model Bytes after Round {training_round}: {global_model_bytes}")
+        print(f"Updated Global Model Size after Round {training_round}: {global_model_bytes} Bytes")
 
         # TODO log global model checkpoint coordinates for restore purposes
 
         # log global update time
         global_update_elapsed_time = time.time() - global_update_start_time
-        global_update_time_by_round[training_round] = global_update_elapsed_time
-        print("\n Global Update Took: {0:0.4f}".format(global_update_elapsed_time))
+        global_update_time_by_round[training_round] = float(global_update_elapsed_time)
+        print("Global Update Took: {0:0.4f} seconds".format(global_update_elapsed_time))
         
         # log total training time
-        total_training_time = federated_training_state['total_training_time'] = time.time() - start_time
-        print("\n Total Training Time so far: {0:0.4f}".format(total_training_time))
+        total_training_time = time.time() - start_time
+        federated_training_state['total_training_time'] = float(total_training_time)
+        print("Total Training Time so far: {0:0.4f} seconds".format(total_training_time))
 
         # persist federated training state (Federation Checkpoint)
         save_federated_training_state_json(model_output_dir, federated_training_state)
 
     # log final total training time
     print("Federated Training Computed!")
-    total_training_time = federated_training_state['total_training_time'] = time.time() - start_time
-    print("\n Total Training Time: {0:0.4f}".format(total_training_time))
+    total_training_time = time.time() - start_time
+    federated_training_state['total_training_time'] = float(total_training_time)
+    print("Total Training Time: {0:0.4f} seconds".format(total_training_time))
+
+    # log end time
+    end_time = time.time()
+    federated_training_state['end_time'] = str(end_time)
+    end_datetime = datetime.now()
+    federated_training_state['end_datetime'] = str(end_datetime)
+    print("Training Finished at:", end_datetime)
 
     # persist federated training state (Federation Checkpoint)
     save_federated_training_state_json(model_output_dir, federated_training_state)
+
+    print("Federated Training State Saved at:", model_output_dir)
