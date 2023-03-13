@@ -125,8 +125,7 @@ class SCDepthModuleV3(LightningModule):
         mean_loss = torch.mean(torch.tensor([x['loss'] for x in outputs]))
         self.train_epoch_losses.append(mean_loss)
 
-    def validation_epoch_end(self, outputs):
-
+    def _shared_eval_epoch_end(self, outputs):
         if self.hparams.hparams.val_mode == 'depth':
             mean_rel = np.array([x['abs_rel'] for x in outputs]).mean()
             mean_diff = np.array([x['abs_diff'] for x in outputs]).mean()
@@ -145,4 +144,11 @@ class SCDepthModuleV3(LightningModule):
         elif self.hparams.hparams.val_mode == 'photo':
             mean_pl = np.array([x['photo_loss'] for x in outputs]).mean()
             self.log('val_loss', mean_pl, prog_bar=True)
+            self.val_epoch_losses.append(mean_pl)
+
+    def validation_epoch_end(self, outputs):
+        self._shared_eval_epoch_end(outputs)
+
+    def test_epoch_end(self, outputs):
+        self._shared_eval_epoch_end(outputs)
   
