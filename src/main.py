@@ -7,7 +7,8 @@ import math
 import sys
 from tqdm import tqdm
 from pprint import pprint
-from tensorboardX import SummaryWriter
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
 from datetime import datetime
 from pytorch_lightning import Trainer
 
@@ -38,6 +39,7 @@ if __name__ == "__main__":
     fed_train_num_participants_per_round = max(int(fed_train_frac_participants_per_round * fed_train_num_participants), 1)
     load_weight_function = load_weights_without_batchnorm if config_args.fed_train_average_without_bn else load_weights
     fed_train_participant_order = config_args.fed_train_participant_order
+    fed_train_num_local_sanity_val_steps = config_args.fed_train_num_local_sanity_val_steps
 
     # set seed
     set_seed(config_args.seed)
@@ -55,7 +57,6 @@ if __name__ == "__main__":
     mkdir_if_missing(model_output_dir)
     config_args.model_time = model_time
     save_args_json(model_output_dir, config_args)
-    global_logger = SummaryWriter(os.path.join(model_output_dir, "tensorboard"))
     config_args.start_time = str(start_datetime)
 
     # persist federated training state (Federation Checkpoint)
@@ -175,9 +176,12 @@ if __name__ == "__main__":
     global_update_time_by_round = federated_training_state['global_update_time_by_round'] = {}
     local_train_loss_by_round_by_participant = federated_training_state['local_train_loss_by_round_by_participant'] = {}
     local_val_loss_by_round_by_participant = federated_training_state['local_val_loss_by_round_by_participant'] = {}
+    local_model_dir_by_participant_by_round = \
+        federated_training_state['local_model_dir_by_participant_by_round'] = {}
     local_model_bytes_by_participant_by_round = \
         federated_training_state['local_model_bytes_by_participant_by_round'] = {}
     global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round'] = {}
+    global_model_dir_by_round = federated_training_state['global_model_dir_by_round'] = {}
     num_participants_by_round = federated_training_state['num_participants_by_round'] = {}
     participant_order_by_round = federated_training_state['participant_order_by_round'] = {}
     global_test_loss_by_round = federated_training_state['global_test_loss_by_round'] = {}
@@ -199,6 +203,19 @@ if __name__ == "__main__":
         num_participants_by_round[training_round] = len(participants_ids)
         local_update_time_by_participant = local_update_time_by_round_by_participant[training_round] = {}
         local_model_bytes_by_participant = local_model_bytes_by_participant_by_round[training_round] = {}
+        local_model_dir_by_participant = local_model_dir_by_participant_by_round[training_round] = {}
+
+        round_dir = f'round_{training_round}'
+        round_model_dir = os.path.join(model_output_dir, round_dir)
+        mkdir_if_missing(round_model_dir)
+        global_logger = TensorBoardLogger(save_dir=model_output_dir, name=round_dir)
+        global_checkpoint_callback = ModelCheckpoint(dirpath=round_model_dir,
+                                                     filename='{epoch}-{val_loss:.4f}',
+                                                     monitor='test_loss',
+                                                     mode='min',
+                                                     save_last=True,
+                                                     save_weights_only=True,
+                                                     save_top_k=3)
 
         # update each local model
         print("Computing Local Updates ...")
@@ -234,11 +251,27 @@ if __name__ == "__main__":
                                            selected_val_sample_indexes=local_sample_val_indexes,
                                            selected_test_sample_indexes=local_sample_test_indexes)
 
+            # configure logger for local training
+            participant_dir = f'participant_{participant_id}'
+            local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir)
+            participant_model_dir = os.path.join(round_model_dir, participant_dir)
+            local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
+                                                        filename='{epoch}-{val_loss:.4f}',
+                                                        monitor='val_loss',
+                                                        mode='min',
+                                                        save_last=True,
+                                                        save_weights_only=True,
+                                                        save_top_k=3)
+
             # configure trainer for local training
             local_model = local_models[participant_id]
             trainer_config = dict(
                 accelerator=device,
-                log_every_n_steps=log_every_n_steps
+                log_every_n_steps=log_every_n_steps,
+                num_sanity_val_steps=fed_train_num_local_sanity_val_steps,
+                callbacks=[local_checkpoint_callback],
+                logger=local_logger,
+                benchmark=True
             )
             if fed_train_num_local_epochs > 0:
                 trainer_config['max_epochs'] = fed_train_num_local_epochs
@@ -283,7 +316,10 @@ if __name__ == "__main__":
                 print(f"Local Model Size of Participant {participant_id} in Round {training_round}: "
                       f"{local_model_bytes_of_participant} Bytes")
 
-                # TODO log local model checkpoint coordinates for restore purposes
+                # log local model checkpoint coordinates for restore purposes
+                local_model_dir_by_participant[participant_id] = participant_model_dir
+                print(f"Local Model of Participant {participant_id} in Round {training_round} has been saved at:",
+                      participant_model_dir)
 
                 print(f"Local Update of Participant {participant_id} Computed!")
 
@@ -320,7 +356,13 @@ if __name__ == "__main__":
         print(f"Global Update Computed!")
 
         print("Testing Global Model after Update...")
-        global_trainer = Trainer(accelerator=device, log_every_n_steps=log_every_n_steps)
+        global_trainer = Trainer(
+            accelerator=device,
+            log_every_n_steps=log_every_n_steps,
+            callbacks=[global_checkpoint_callback],
+            logger=global_logger,
+            benchmark=True
+        )
         global_trainer.test(global_model, global_data)
         test_epoch_losses = global_model.test_epoch_losses
         test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
@@ -332,7 +374,9 @@ if __name__ == "__main__":
         global_model_bytes_by_round[training_round] = global_model_bytes
         print(f"Updated Global Model Size after Round {training_round}: {global_model_bytes} Bytes")
 
-        # TODO log global model checkpoint coordinates for restore purposes
+        # log global model checkpoint coordinates for restore purposes
+        global_model_dir_by_round[training_round] = round_model_dir
+        print(f"Global Model of Round {training_round} has been saved at:", round_model_dir)
 
         # log global update time
         global_update_elapsed_time = time.time() - global_update_start_time
