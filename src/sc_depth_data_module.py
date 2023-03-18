@@ -61,22 +61,23 @@ class SCDepthDataModule(LightningDataModule):
         )
 
         if self.hparams.hparams.val_mode == 'depth':
-            self.val_dataset = ValidationSet(
+            self.test_dataset = self.val_dataset = ValidationSet(
                 self.hparams.hparams.dataset_dir,
                 transform=self.valid_transform,
                 dataset=self.hparams.hparams.dataset_name,
                 selected_sample_indexes=self.selected_val_sample_indexes
             )
-            self.test_dataset = TestSet(
-                self.hparams.hparams.dataset_dir,
-                transform=self.test_transform,
-                dataset=self.hparams.hparams.dataset_name,
-                selected_sample_indexes=self.selected_test_sample_indexes
-            )
+            # FIXME
+            # self.test_dataset = TestSet(
+            #    self.hparams.hparams.dataset_dir,
+            #    transform=self.test_transform,
+            #    dataset=self.hparams.hparams.dataset_name,
+            #    selected_sample_indexes=self.selected_test_sample_indexes
+            # )
             print("depth validation mode")
         elif self.hparams.hparams.val_mode == 'photo':
             print("photo validation mode")
-            self.val_dataset = TrainSet(
+            self.test_dataset = self.val_dataset = TrainSet(
                 self.hparams.hparams.dataset_dir,
                 transform=self.valid_transform,
                 sequence_length=self.hparams.hparams.sequence_length,
@@ -85,21 +86,23 @@ class SCDepthDataModule(LightningDataModule):
                 with_pseudo_depth=self.load_pseudo_depth,
                 selected_sample_indexes=self.selected_val_sample_indexes
             )
-            self.test_dataset = TrainSet(
-                self.hparams.hparams.dataset_dir,
-                transform=self.test_transform,
-                sequence_length=self.hparams.hparams.sequence_length,
-                skip_frames=self.hparams.hparams.skip_frames,
-                use_frame_index=self.hparams.hparams.use_frame_index,
-                with_pseudo_depth=self.load_pseudo_depth,
-                selected_sample_indexes=self.selected_test_sample_indexes
-            )
+            # self.test_dataset = TrainSet(
+            #    self.hparams.hparams.dataset_dir,
+            #    transform=self.test_transform,
+            #    sequence_length=self.hparams.hparams.sequence_length,
+            #    use_frame_index=self.hparams.hparams.use_frame_index,
+            #    with_pseudo_depth=self.load_pseudo_depth,
+            #    selected_sample_indexes=self.selected_test_sample_indexes
+            # )
         else:
             print("wrong validation mode")
 
         print('{} samples found for training'.format(len(self.train_dataset)))
         print('{} samples found for validation'.format(len(self.val_dataset)))
         print('{} samples found in test'.format(len(self.test_dataset)))
+        print('WARNING: test and validation datasets are currently the same. '
+              'The actual test dataset will only be used in the final global model evaluation and '
+              'should not be seen during the federated training.')
 
     def train_dataloader(self):
         print("train num_workers", self.hparams.hparams.num_workers)

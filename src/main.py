@@ -180,6 +180,7 @@ if __name__ == "__main__":
     global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round'] = {}
     num_participants_by_round = federated_training_state['num_participants_by_round'] = {}
     participant_order_by_round = federated_training_state['participant_order_by_round'] = {}
+    global_test_loss_by_round = federated_training_state['global_test_loss_by_round'] = {}
 
     # persist federated training state (Federation Checkpoint)
     save_federated_training_state_json(model_output_dir, federated_training_state)
@@ -317,6 +318,14 @@ if __name__ == "__main__":
             local_models[i] = load_weight_function(local_models[i], global_weights)
         global_model.load_state_dict(global_weights)
         print(f"Global Update Computed!")
+
+        print("Testing Global Model after Update...")
+        global_trainer = Trainer(accelerator=device, log_every_n_steps=log_every_n_steps)
+        global_trainer.test(global_model, global_data)
+        test_epoch_losses = global_model.test_epoch_losses
+        test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
+        global_test_loss_by_round[training_round] = test_epoch_loss
+        print(f"Global Test Loss in Round {training_round}: {test_epoch_loss}")
 
         # log global model weights
         global_model_bytes = sys.getsizeof(global_weights)

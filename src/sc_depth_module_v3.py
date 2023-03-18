@@ -19,6 +19,7 @@ class SCDepthModuleV3(LightningModule):
         self.depth_net = DepthNet(self.hparams.hparams.resnet_layers)
         self.pose_net = PoseNet()
         self.val_epoch_losses = []
+        self.test_epoch_losses = []
         self.train_epoch_losses = []
 
     def configure_optimizers(self):
@@ -125,30 +126,30 @@ class SCDepthModuleV3(LightningModule):
         mean_loss = torch.mean(torch.tensor([x['loss'] for x in outputs]))
         self.train_epoch_losses.append(mean_loss)
 
-    def _shared_eval_epoch_end(self, outputs):
+    def _shared_eval_epoch_end(self, outputs, stage):
         if self.hparams.hparams.val_mode == 'depth':
             mean_rel = np.array([x['abs_rel'] for x in outputs]).mean()
             mean_diff = np.array([x['abs_diff'] for x in outputs]).mean()
             mean_a1 = np.array([x['a1'] for x in outputs]).mean()
             mean_a2 = np.array([x['a2'] for x in outputs]).mean()
             mean_a3 = np.array([x['a3'] for x in outputs]).mean()
-            
-            self.log('val_loss', mean_rel, prog_bar=True)
-            self.log('val/abs_diff', mean_diff)
-            self.log('val/abs_rel', mean_rel)
-            self.log('val/a1', mean_a1, on_epoch=True)
-            self.log('val/a2', mean_a2, on_epoch=True)
-            self.log('val/a3', mean_a3, on_epoch=True)
-            self.val_epoch_losses.append(mean_rel)
-
+            self.log(f'{stage}_loss', mean_rel, prog_bar=True)
+            self.log(f'{stage}/abs_diff', mean_diff)
+            self.log(f'{stage}/abs_rel', mean_rel)
+            self.log(f'{stage}/a1', mean_a1, on_epoch=True)
+            self.log(f'{stage}/a2', mean_a2, on_epoch=True)
+            self.log(f'{stage}/a3', mean_a3, on_epoch=True)
+            return mean_rel
         elif self.hparams.hparams.val_mode == 'photo':
             mean_pl = np.array([x['photo_loss'] for x in outputs]).mean()
-            self.log('val_loss', mean_pl, prog_bar=True)
-            self.val_epoch_losses.append(mean_pl)
+            self.log(f'{stage}_loss', mean_pl, prog_bar=True)
+            return mean_pl
 
     def validation_epoch_end(self, outputs):
-        self._shared_eval_epoch_end(outputs)
+        val_loss = self._shared_eval_epoch_end(outputs, 'val')
+        self.val_epoch_losses.append(val_loss)
 
     def test_epoch_end(self, outputs):
-        self._shared_eval_epoch_end(outputs)
+        test_loss = self._shared_eval_epoch_end(outputs, 'test')
+        self.test_epoch_losses.append(test_loss)
   
