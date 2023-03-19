@@ -1,7 +1,10 @@
 import os
 import copy
 import time
+import traceback
+
 import numpy as np
+from types import SimpleNamespace
 import torch
 import math
 import sys
@@ -13,22 +16,54 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, save_federated_training_state_json, save_args_json, average_weights, \
-    load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, mkdir_if_missing
+    load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, mkdir_if_missing, \
+    read_federated_training_state_json
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
 
 if __name__ == "__main__":
+    config_args = get_configargs()
+    restore_dir = config_args.fed_train_state_restore_dir
+    backup_dir = config_args.fed_train_state_backup_dir
 
-    # initialize federated training state
-    # TODO read from JSON file
+    # initialize federated training state (backup/restore)
     federated_training_state = {}
+    restoring_federation_state = False
+    model_save_dir = None
+    model_time = None
+    start_time = None
+    start_datetime = None
+    device = None
+    if restore_dir:
+        if not os.path.exists(restore_dir):
+            raise Exception(f"Restore Directory Informed ({restore_dir}) does not exist!")
+        model_save_dir = restore_dir
+        restoring_federation_state = True
+        federated_training_state = read_federated_training_state_json(model_save_dir)
+        model_time = federated_training_state['model_time']
+        start_time = federated_training_state['start_time']
+        start_datetime = federated_training_state['start_datetime']
+        config_args = SimpleNamespace(**federated_training_state['config_args'])
+        device = federated_training_state['device']
+    else:
+        start_time = time.time()
+        federated_training_state['start_time'] = str(start_time)
+        start_datetime = datetime.now()
+        federated_training_state['start_datetime'] = str(start_datetime)
+        model_time = start_datetime.strftime("%d_%m_%Y_%H:%M:%S")
+        federated_training_state['model_time'] = model_time
+        mkdir_if_missing(backup_dir)
+        federated_training_state['model_save_dir'] = model_save_dir = os.path.join(backup_dir, model_time)
+        mkdir_if_missing(model_save_dir)
+        federated_training_state['config_args'] = vars(config_args)
+        device = "cuda" if torch.cuda.is_available() and config_args.gpu else "cpu"
+        federated_training_state['device'] = device
+    config_args.model_time = model_time
+    config_args.start_time = str(start_datetime)
+    save_args_json(model_save_dir, config_args)
 
     # parse config args
-    config_args = get_configargs()
-    federated_training_state['config_args'] = vars(config_args)
-    device = "cuda" if torch.cuda.is_available() and config_args.gpu else "cpu"
-    federated_training_state['device'] = device
     fed_train_num_rounds = config_args.fed_train_num_rounds
     fed_train_num_participants = config_args.fed_train_num_participants
     fed_train_frac_participants_per_round = config_args.fed_train_frac_participants_per_round
@@ -44,28 +79,13 @@ if __name__ == "__main__":
     # set seed
     set_seed(config_args.seed)
 
-    # setup logger
-    start_time = time.time()
-    federated_training_state['start_time'] = str(start_time)
-    start_datetime = datetime.now()
-    federated_training_state['start_datetime'] = str(start_datetime)
-    federated_training_state['process_id'] = process_id = str(os.getpid())
-    model_time = start_datetime.strftime("%d_%m_%Y_%H:%M:%S") + "_{}".format(process_id)
-    output_dir = config_args.fed_train_state_save_dir
-    mkdir_if_missing(output_dir)
-    federated_training_state['model_output_dir'] = model_output_dir = os.path.join(output_dir, model_time)
-    mkdir_if_missing(model_output_dir)
-    config_args.model_time = model_time
-    save_args_json(model_output_dir, config_args)
-    config_args.start_time = str(start_datetime)
-
     # persist federated training state (Federation Checkpoint)
-    save_federated_training_state_json(model_output_dir, federated_training_state)
+    save_federated_training_state_json(model_save_dir, federated_training_state)
 
     # print configuration info
     print("Pytorch CUDA is Available:", torch.cuda.is_available())
     print("PyTorch Device:", device)
-    print("Output Model Directory:", model_output_dir)
+    print("Model Save Directory:", model_save_dir)
     print("Number of Participants per Round: {}".format(fed_train_num_participants_per_round))
     print("Total Number of Rounds: {}".format(fed_train_num_rounds))
     pprint(config_args)
@@ -81,13 +101,27 @@ if __name__ == "__main__":
         global_model = SCDepthModuleV3(sc_depth_hparams)
     if global_model is None:
         raise Exception("model_version is invalid! Only v3 is currently supported!")
+    if restoring_federation_state:
+        global_model_checkpoint_path = os.path.join(model_save_dir, "last.ckpt")
+        try:
+            print('load pre-trained model from {}'.format(global_model_checkpoint_path))
+            global_model = global_model.load_from_checkpoint(
+                checkpoint_path=global_model_checkpoint_path,
+                strict=False,
+                hparams=sc_depth_hparams
+            )
+        except:
+            traceback.print_exc()
+            print(f"WARNING: Could not load global model checkpoint from {global_model_checkpoint_path}!"
+                  f"Will proceed with default global model initialization.")
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
-    federated_training_state['initial_global_weights_bytesize'] = sys.getsizeof(global_weights)
+    if federated_training_state.get('initial_global_weights_bytesize', None) is None:
+        federated_training_state['initial_global_weights_bytesize'] = sys.getsizeof(global_weights)
     print("Global Model Initialized!")
 
     # persist federated training state (Federation Checkpoint)
-    save_federated_training_state_json(model_output_dir, federated_training_state)
+    save_federated_training_state_json(model_save_dir, federated_training_state)
 
     # initialize local models
     print("Initializing Local Models ...")
@@ -95,120 +129,149 @@ if __name__ == "__main__":
     print("Local Models Initialized!")
 
     # distribute training data
-    print("Computing Dataset Distribution ...")
+    print("Setting Up Training Dataset ...")
     global_data = SCDepthDataModule(sc_depth_hparams)
     global_data.setup()
+    print("Training Dataset Setup Completed!")
 
-    sample_train_indexes_by_participant = {}
-    sample_val_indexes_by_participant = {}
-    sample_test_indexes_by_participant = {}
+    sample_train_indexes_by_participant = federated_training_state.get('sample_train_indexes_by_participant', {})
+    sample_val_indexes_by_participant = federated_training_state.get('sample_val_indexes_by_participant', {})
+    sample_test_indexes_by_participant = federated_training_state.get('sample_test_indexes_by_participant', {})
 
-    if config_args.fed_train_by_drive:
-        train_drive_ids = global_data.get_drive_ids("train")
-        print(len(train_drive_ids), "TRAIN DRIVE IDS FOUND")
+    if not restoring_federation_state:
+        print("Computing Dataset distribution across participants ...")
+        if config_args.fed_train_by_drive:
+            train_drive_ids = global_data.get_drive_ids("train")
+            print(len(train_drive_ids), "TRAIN DRIVE IDS FOUND")
 
-        # validate number of participants
-        if fed_train_num_participants > len(train_drive_ids):
-            raise Exception("fed_train_num_participants cannot be greater the number of train drive ids available!")
+            # validate number of participants
+            if fed_train_num_participants > len(train_drive_ids):
+                raise Exception("fed_train_num_participants cannot be greater the number of train drive ids available!")
 
-        # distribute sample indexes by participant
-        for participant_index, drive_id in enumerate(train_drive_ids):
+            # distribute sample indexes by participant
+            for participant_index, drive_id in enumerate(train_drive_ids):
+                # train indexes vary based on drive id
+                train_drive_samples = global_data.get_samples_by_drive_id("train", drive_id)
+                print(len(train_drive_samples), "TRAIN SAMPLES FOUND FOR DRIVE ID", drive_id)
+                train_drive_sample_indexes = [sample['sourceIndex'] for sample in train_drive_samples]
+                sample_train_indexes_by_participant[participant_index] = train_drive_sample_indexes
 
-            # train indexes vary based on drive id
-            train_drive_samples = global_data.get_samples_by_drive_id("train", drive_id)
-            print(len(train_drive_samples), "TRAIN SAMPLES FOUND FOR DRIVE ID", drive_id)
-            train_drive_sample_indexes = [sample['sourceIndex'] for sample in train_drive_samples]
-            sample_train_indexes_by_participant[participant_index] = train_drive_sample_indexes
+                # val indexes are always the same (every participant has the same val dataset)
+                val_dataset_size = global_data.get_dataset_size("val")
+                sample_val_indexes_by_participant[participant_index] = [i for i in range(val_dataset_size)]
 
-            # val indexes are always the same (every participant has the same val dataset)
+                # test indexes are always the same (every participant has the same test dataset)
+                test_dataset_size = global_data.get_dataset_size("test")
+                sample_test_indexes_by_participant[participant_index] = [i for i in range(test_dataset_size)]
+
+            # check for duplicates
+            intersection_set = set()
+            list_of_sets = [set(value) for value in sample_train_indexes_by_participant.values()]
+            for i, value_set_a in enumerate(list_of_sets):
+                for j, value_set_b in enumerate(list_of_sets):
+                    if i == j:
+                        continue
+                    intersection = value_set_a.intersection(value_set_b)
+                    intersection_set = intersection_set.union(intersection)
+            if len(intersection_set) > 0:
+                print(len(intersection_set), "duplicates found!")
+                raise Exception("Dataset Distribution Error!")
+        else:
+            train_dataset_size = global_data.get_dataset_size("train")
             val_dataset_size = global_data.get_dataset_size("val")
-            sample_val_indexes_by_participant[participant_index] = [i for i in range(val_dataset_size)]
-
-            # test indexes are always the same (every participant has the same test dataset)
             test_dataset_size = global_data.get_dataset_size("test")
-            sample_test_indexes_by_participant[participant_index] = [i for i in range(test_dataset_size)]
-
-        # check for duplicates
-        intersection_set = set()
-        list_of_sets = [set(value) for value in sample_train_indexes_by_participant.values()]
-        for i, value_set_a in enumerate(list_of_sets):
-            for j, value_set_b in enumerate(list_of_sets):
-                if i == j:
-                    continue
-                intersection = value_set_a.intersection(value_set_b)
-                intersection_set = intersection_set.union(intersection)
-        if len(intersection_set) > 0:
-            print(len(intersection_set), "duplicates found!")
-            raise Exception("Dataset Distribution Error!")
-
+            sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size,
+                                                                                fed_train_num_participants)
+            sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
+            sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size,
+                                                                               fed_train_num_participants)
+        federated_training_state['sample_train_indexes_by_participant'] = sample_train_indexes_by_participant
+        federated_training_state['sample_val_indexes_by_participant'] = sample_val_indexes_by_participant
+        federated_training_state['sample_test_indexes_by_participant'] = sample_test_indexes_by_participant
+        print("Dataset Distribution Computed!")
     else:
-        train_dataset_size = global_data.get_dataset_size("train")
-        val_dataset_size = global_data.get_dataset_size("val")
-        test_dataset_size = global_data.get_dataset_size("test")
-        sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size,
-                                                                            fed_train_num_participants)
-        sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size, fed_train_num_participants)
-        sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size,
-                                                                           fed_train_num_participants)
-
-    federated_training_state['sample_train_indexes_by_participant'] = sample_train_indexes_by_participant
-    federated_training_state['sample_val_indexes_by_participant'] = sample_val_indexes_by_participant
-    federated_training_state['sample_test_indexes_by_participant'] = sample_test_indexes_by_participant
-    print("Dataset Distribution Computed!")
+        print("Dataset distribution restored from federated training state backup!")
 
     # persist federated training state (Federation Checkpoint)
-    save_federated_training_state_json(model_output_dir, federated_training_state)
+    save_federated_training_state_json(model_save_dir, federated_training_state)
 
     # run federated training
     print("Computing Federated Training ...")
-    start_training_round = 0
-    federated_training_state.update({
-        'current_round': start_training_round,
-        'max_rounds': fed_train_num_rounds,
-        'fed_train_num_local_epochs': fed_train_num_local_epochs,
-        'fed_train_num_local_train_batches': fed_train_num_local_train_batches,
-        'fed_train_num_local_val_batches': fed_train_num_local_val_batches,
-        'log_every_n_steps': log_every_n_steps,
-        'total_training_time': None
-    })
-    local_update_time_by_round_by_participant = \
+    start_training_round = federated_training_state.get('current_round', 0)
+    if not restoring_federation_state:
+        federated_training_state.update({
+            'current_round': start_training_round,
+            'max_rounds': fed_train_num_rounds,
+            'fed_train_num_local_epochs': fed_train_num_local_epochs,
+            'fed_train_num_local_train_batches': fed_train_num_local_train_batches,
+            'fed_train_num_local_val_batches': fed_train_num_local_val_batches,
+            'log_every_n_steps': log_every_n_steps,
+            'total_training_time': None
+        })
         federated_training_state['local_update_time_by_round_by_participant'] = {}
-    global_update_time_by_round = federated_training_state['global_update_time_by_round'] = {}
-    local_train_loss_by_round_by_participant = federated_training_state['local_train_loss_by_round_by_participant'] = {}
-    local_val_loss_by_round_by_participant = federated_training_state['local_val_loss_by_round_by_participant'] = {}
-    local_model_dir_by_participant_by_round = \
+        federated_training_state['global_update_time_by_round'] = {}
+        federated_training_state['local_train_loss_by_round_by_participant'] = {}
+        federated_training_state['local_val_loss_by_round_by_participant'] = {}
         federated_training_state['local_model_dir_by_participant_by_round'] = {}
-    local_model_bytes_by_participant_by_round = \
         federated_training_state['local_model_bytes_by_participant_by_round'] = {}
-    global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round'] = {}
-    global_model_dir_by_round = federated_training_state['global_model_dir_by_round'] = {}
-    num_participants_by_round = federated_training_state['num_participants_by_round'] = {}
-    participant_order_by_round = federated_training_state['participant_order_by_round'] = {}
-    global_test_loss_by_round = federated_training_state['global_test_loss_by_round'] = {}
+        federated_training_state['global_model_bytes_by_round'] = {}
+        federated_training_state['global_model_dir_by_round'] = {}
+        federated_training_state['num_participants_by_round'] = {}
+        federated_training_state['participant_order_by_round'] = {}
+        federated_training_state['global_test_loss_by_round'] = {}
+    local_update_time_by_round_by_participant = federated_training_state['local_update_time_by_round_by_participant']
+    global_update_time_by_round = federated_training_state['global_update_time_by_round']
+    local_train_loss_by_round_by_participant = federated_training_state['local_train_loss_by_round_by_participant']
+    local_val_loss_by_round_by_participant = federated_training_state['local_val_loss_by_round_by_participant']
+    local_model_dir_by_participant_by_round = federated_training_state['local_model_dir_by_participant_by_round']
+    local_model_bytes_by_participant_by_round = federated_training_state['local_model_bytes_by_participant_by_round']
+    global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round']
+    global_model_dir_by_round = federated_training_state['global_model_dir_by_round']
+    num_participants_by_round = federated_training_state['num_participants_by_round']
+    participant_order_by_round = federated_training_state['participant_order_by_round']
+    global_test_loss_by_round = federated_training_state['global_test_loss_by_round']
 
     # persist federated training state (Federation Checkpoint)
-    save_federated_training_state_json(model_output_dir, federated_training_state)
+    save_federated_training_state_json(model_save_dir, federated_training_state)
 
     for training_round in tqdm(range(start_training_round, fed_train_num_rounds)):
         training_round = str(training_round)
+        federated_training_state['current_round'] = training_round
         global_update_start_time = time.time()
         print(f"\n | Federated Training Round : {training_round} | Global Model : {model_time}\n")
 
         local_weights_by_participant = {}
-        local_train_losses_by_participant = local_train_loss_by_round_by_participant[training_round] = {}
-        local_val_losses_by_participant = local_val_loss_by_round_by_participant[training_round] = {}
-        participants_ids = list(np.random.choice(range(fed_train_num_participants),
-                                                 fed_train_num_participants_per_round, replace=False))
-        participants_ids = [int(participant_id) for participant_id in participants_ids]
-        num_participants_by_round[training_round] = len(participants_ids)
-        local_update_time_by_participant = local_update_time_by_round_by_participant[training_round] = {}
-        local_model_bytes_by_participant = local_model_bytes_by_participant_by_round[training_round] = {}
-        local_model_dir_by_participant = local_model_dir_by_participant_by_round[training_round] = {}
+        local_train_losses_by_participant = local_train_loss_by_round_by_participant.get(training_round, {})
+        local_train_loss_by_round_by_participant[training_round] = local_train_losses_by_participant
+        local_val_losses_by_participant = local_val_loss_by_round_by_participant.get(training_round, {})
+        local_val_loss_by_round_by_participant[training_round] = local_val_losses_by_participant
+        participants_ids = participant_order_by_round.get(training_round, [])
+        if not restoring_federation_state:
+            participants_ids = list(np.random.choice(range(fed_train_num_participants),
+                                                     fed_train_num_participants_per_round, replace=False))
+            participants_ids = [int(participant_id) for participant_id in participants_ids]
+            num_participants_by_round[training_round] = len(participants_ids)
+            if fed_train_participant_order == "sequential":
+                participants_ids.sort()
+                print("Local Updates of Participants will be computed in Sequential Order!")
+            elif fed_train_participant_order == "random":
+                print("Local Updates of Participants will be computed in Random Order!")
+            else:
+                raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
+                                f"Only 'sequential' and 'random' are supported!")
+            print(f"Participant Local Update Sequence is: {participants_ids}")
+            participant_order_by_round[training_round] = participants_ids
+        local_update_time_by_participant = local_update_time_by_round_by_participant.get(training_round, {})
+        local_update_time_by_round_by_participant[training_round] = local_update_time_by_participant
+        local_model_bytes_by_participant = local_model_bytes_by_participant_by_round.get(training_round, {})
+        local_model_bytes_by_participant_by_round[training_round] = local_model_bytes_by_participant
+        local_model_dir_by_participant = local_model_dir_by_participant_by_round.get(training_round, {})
+        local_model_dir_by_participant_by_round[training_round] = local_model_dir_by_participant
 
         round_dir = f'round_{training_round}'
-        round_model_dir = os.path.join(model_output_dir, round_dir)
+        round_model_dir = os.path.join(model_save_dir, round_dir)
         mkdir_if_missing(round_model_dir)
-        global_logger = TensorBoardLogger(save_dir=model_output_dir, name=round_dir)
+        global_logger = TensorBoardLogger(save_dir=model_save_dir, name=round_dir)
         global_checkpoint_callback = ModelCheckpoint(dirpath=round_model_dir,
                                                      filename='{epoch}-{val_loss:.4f}',
                                                      monitor='test_loss',
@@ -217,28 +280,38 @@ if __name__ == "__main__":
                                                      save_weights_only=True,
                                                      save_top_k=3)
 
+        # persist federated training state (Federation Checkpoint)
+        save_federated_training_state_json(model_save_dir, federated_training_state)
+
         # update each local model
         print("Computing Local Updates ...")
-        if fed_train_participant_order == "sequential":
-            participants_ids.sort()
-            print("Local Updates of Participants will be computed in Sequential Order!")
-        elif fed_train_participant_order == "random":
-            print("Local Updates of Participants will be computed in Random Order!")
-        else:
-            raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
-                            f"Only 'sequential' and 'random' are supported!")
-        print(f"Participant Local Update Sequence is: {participants_ids}")
-        participant_order_by_round[training_round] = participants_ids
-
-        # persist federated training state (Federation Checkpoint)
-        save_federated_training_state_json(model_output_dir, federated_training_state)
-
         for participant_id in participants_ids:
             local_update_start_time = time.time()
+
+            # prepare local model for update
+            local_model = local_models[participant_id]
+            participant_dir = f'participant_{participant_id}'
+            participant_model_dir = os.path.join(round_model_dir, participant_dir)
+            if restoring_federation_state:
+                local_model_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
+                try:
+                    print('load pre-trained model from {}'.format(local_model_checkpoint_path))
+                    local_model = local_model.load_from_checkpoint(
+                        checkpoint_path=local_model_checkpoint_path,
+                        strict=False,
+                        hparams=sc_depth_hparams
+                    )
+                    if participant_id != federated_training_state['current_participant_id']:
+                        continue
+                except:
+                    traceback.print_exc()
+                    print(f"WARNING: Could not load local model checkpoint from {local_model_checkpoint_path}!"
+                          f"Will proceed with local model version initialized from global model.")
+
             federated_training_state['current_participant_id'] = participant_id
 
             # persist federated training state (Federation Checkpoint)
-            save_federated_training_state_json(model_output_dir, federated_training_state)
+            save_federated_training_state_json(model_save_dir, federated_training_state)
 
             print(f"Computing Local Update of Participant {participant_id} ...")
 
@@ -252,9 +325,7 @@ if __name__ == "__main__":
                                            selected_test_sample_indexes=local_sample_test_indexes)
 
             # configure logger for local training
-            participant_dir = f'participant_{participant_id}'
             local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir)
-            participant_model_dir = os.path.join(round_model_dir, participant_dir)
             local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
                                                         filename='{epoch}-{val_loss:.4f}',
                                                         monitor='val_loss',
@@ -264,7 +335,6 @@ if __name__ == "__main__":
                                                         save_top_k=3)
 
             # configure trainer for local training
-            local_model = local_models[participant_id]
             trainer_config = dict(
                 accelerator=device,
                 log_every_n_steps=log_every_n_steps,
@@ -329,7 +399,7 @@ if __name__ == "__main__":
             print("Local Update Took: {0:0.4f} seconds".format(local_update_elapsed_time))
 
             # persist federated training state (Federation Checkpoint)
-            save_federated_training_state_json(model_output_dir, federated_training_state)
+            save_federated_training_state_json(model_save_dir, federated_training_state)
 
         # log average local performance
         print("Local Updates Computed!")
@@ -389,7 +459,7 @@ if __name__ == "__main__":
         print("Total Training Time so far: {0:0.4f} seconds".format(total_training_time))
 
         # persist federated training state (Federation Checkpoint)
-        save_federated_training_state_json(model_output_dir, federated_training_state)
+        save_federated_training_state_json(model_save_dir, federated_training_state)
 
     # log final total training time
     print("Federated Training Computed!")
@@ -405,6 +475,6 @@ if __name__ == "__main__":
     print("Training Finished at:", end_datetime)
 
     # persist federated training state (Federation Checkpoint)
-    save_federated_training_state_json(model_output_dir, federated_training_state)
+    save_federated_training_state_json(model_save_dir, federated_training_state)
 
-    print("Federated Training State Saved at:", model_output_dir)
+    print("Federated Training State Saved at:", model_save_dir)

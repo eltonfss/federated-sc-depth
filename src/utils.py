@@ -9,12 +9,14 @@ import numpy as np
 import cv2
 from PIL import Image
 
+
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
+
 
 def mkdir_if_missing(dst_dir):
     if not os.path.exists(dst_dir):
@@ -34,6 +36,12 @@ def save_federated_training_state_json(path, federated_training_state):
     arg_json = os.path.join(path, "federated_training_state.json")
     with open(arg_json, "w") as f:
         json.dump(federated_training_state, f, sort_keys=True)
+
+
+def read_federated_training_state_json(path):
+    arg_json = os.path.join(path, "federated_training_state.json")
+    with open(arg_json, "r") as f:
+        return json.load(f)
 
 
 def average_weights(w, avg_weights=None):
