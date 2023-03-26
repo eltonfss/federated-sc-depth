@@ -283,12 +283,13 @@ if __name__ == "__main__":
             round_model_dir = os.path.join(model_save_dir, round_dir)
             mkdir_if_missing(round_model_dir)
             global_logger = TensorBoardLogger(save_dir=model_save_dir, name=round_dir)
+            global_checkpoint_path = os.path.join(round_model_dir, "last.ckpt")
             global_checkpoint_callback = ModelCheckpoint(dirpath=round_model_dir,
-                                                         filename='{epoch}-{val_loss:.4f}',
+                                                         save_last=True,
+                                                         save_weights_only=False,
                                                          monitor='test_loss',
                                                          mode='min',
-                                                         save_last=True,
-                                                         save_weights_only=True,
+                                                         verbose=True,
                                                          save_top_k=3)
 
             # persist federated training state (Federation Checkpoint)
@@ -303,12 +304,12 @@ if __name__ == "__main__":
                 local_model = local_models[participant_id]
                 participant_dir = f'participant_{participant_id}'
                 participant_model_dir = os.path.join(round_model_dir, participant_dir)
+                local_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
                 if restoring_federation_state:
-                    local_model_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
                     try:
-                        print('load pre-trained model from {}'.format(local_model_checkpoint_path))
+                        print('load pre-trained model from {}'.format(local_checkpoint_path))
                         local_model = local_model.load_from_checkpoint(
-                            checkpoint_path=local_model_checkpoint_path,
+                            checkpoint_path=local_checkpoint_path,
                             strict=False,
                             hparams=sc_depth_hparams
                         )
@@ -318,7 +319,7 @@ if __name__ == "__main__":
                             restoring_federation_state = False
                     except:
                         traceback.print_exc()
-                        print(f"WARNING: Could not load local model checkpoint from {local_model_checkpoint_path}!"
+                        print(f"WARNING: Could not load local model checkpoint from {local_checkpoint_path}!"
                               f"Will proceed with local model version initialized from global model.")
 
                 federated_training_state['current_participant_id'] = participant_id
@@ -340,12 +341,11 @@ if __name__ == "__main__":
                 # configure logger for local training
                 local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir)
                 local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
-                                                            filename='{epoch}-{val_loss:.4f}',
-                                                            monitor='val_loss',
-                                                            mode='min',
                                                             save_last=True,
-                                                            save_weights_only=True,
-                                                            save_top_k=3)
+                                                            save_weights_only=False,
+                                                            every_n_train_steps=30,
+                                                            save_on_train_epoch_end=True,
+                                                            verbose=True)
 
                 # configure trainer for local training
                 trainer_config = dict(
@@ -366,7 +366,10 @@ if __name__ == "__main__":
                 local_trainer = Trainer(**trainer_config)
 
                 # execute local training
-                local_trainer.fit(local_model, local_data)
+                fit_config = dict(model=local_model, datamodule=local_data)
+                if os.path.exists(local_checkpoint_path):
+                    fit_config.update(dict(ckpt_path=local_checkpoint_path))
+                local_trainer.fit(**fit_config)
                 if local_trainer.interrupted:
                     raise KeyboardInterrupt("Local Update Interrupted")
 
@@ -461,7 +464,10 @@ if __name__ == "__main__":
                 logger=global_logger,
                 benchmark=True
             )
-            global_trainer.test(global_model, global_data)
+            test_config = dict(model=global_model, datamodule=global_data)
+            if os.path.exists(global_checkpoint_path):
+                test_config.update(dict(ckpt_path=global_checkpoint_path))
+            global_trainer.test(**test_config)
             if global_trainer.interrupted:
                 raise KeyboardInterrupt("Global Update Interrupted!")
             test_epoch_losses = global_model.test_epoch_losses
@@ -508,7 +514,7 @@ if __name__ == "__main__":
         backup_federated_training_state(model_save_dir, federated_training_state)
 
     except KeyboardInterrupt as exception:
-        print("Federated Training interruption request detected!")
+        print("\nFederated Training interruption request detected!")
         print("Saving Federated Training State and stopping training ...")
         backup_federated_training_state(model_save_dir, federated_training_state)
     finally:
