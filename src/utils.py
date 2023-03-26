@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 from PIL import Image
 
+FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -23,24 +24,30 @@ def mkdir_if_missing(dst_dir):
         os.makedirs(dst_dir)
 
 
-def save_args_json(path, args):
-    mkdir_if_missing(path)
-    arg_json = os.path.join(path, "args.json")
-    with open(arg_json, "w") as f:
-        args = vars(args)
-        json.dump(args, f, indent=4, sort_keys=True)
+def backup_and_restore_federated_training_state(save_directory_path, federated_training_state):
+    backup_federated_training_state(save_directory_path, federated_training_state)
+    return restore_federated_training_state(save_directory_path)
 
 
-def save_federated_training_state_json(path, federated_training_state):
-    mkdir_if_missing(path)
-    arg_json = os.path.join(path, "federated_training_state.json")
-    with open(arg_json, "w") as f:
-        json.dump(federated_training_state, f, sort_keys=True)
+def backup_federated_training_state(save_directory_path, federated_training_state):
+    save_dict_or_list_as_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME, federated_training_state)
 
 
-def read_federated_training_state_json(path):
-    arg_json = os.path.join(path, "federated_training_state.json")
-    with open(arg_json, "r") as f:
+def restore_federated_training_state(save_directory_path):
+    return read_dict_or_list_from_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME)
+
+
+def save_dict_or_list_as_json(save_directory_path, filename_without_extension, dict_or_list,
+                              indent=None, sort_keys=False):
+    mkdir_if_missing(save_directory_path)
+    filepath = os.path.join(save_directory_path, f'{filename_without_extension}.json')
+    with open(filepath, "w") as f:
+        json.dump(dict_or_list, f, indent=indent, sort_keys=sort_keys)
+
+
+def read_dict_or_list_from_json(save_directory_path, filename_without_extension):
+    filename = os.path.join(save_directory_path, f"{filename_without_extension}.json")
+    with open(filename, "r") as f:
         return json.load(f)
 
 
@@ -108,8 +115,8 @@ def compute_iid_sample_partitions(dataset_size, num_partitions):
     num_samples = int(dataset_size / num_partitions)
     sample_indexes_by_partition, available_sample_indexes = {}, [sample_index for sample_index in range(dataset_size)]
     for partition_index in range(num_partitions):
-        sample_indexes_by_partition[partition_index] = set(np.random.choice(available_sample_indexes, num_samples,
+        sample_indexes_by_partition[str(partition_index)] = set(np.random.choice(available_sample_indexes, num_samples,
                                                                             replace=False))
-        sample_indexes_by_partition[partition_index] = [int(i) for i in sample_indexes_by_partition[partition_index]]
-        available_sample_indexes = list(set(available_sample_indexes) - set(sample_indexes_by_partition[partition_index]))
+        sample_indexes_by_partition[str(partition_index)] = [int(i) for i in sample_indexes_by_partition[str(partition_index)]]
+        available_sample_indexes = list(set(available_sample_indexes) - set(sample_indexes_by_partition[str(partition_index)]))
     return sample_indexes_by_partition
