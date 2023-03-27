@@ -97,21 +97,23 @@ if __name__ == "__main__":
     sc_depth_hparams.lr = sc_depth_hparams.fed_train_local_learn_rate
     sc_depth_hparams.epoch_size = sc_depth_hparams.fed_train_num_local_train_batches
     global_model = None
+    global_model_round = None
     if config_args.model_version == 'v3':
         global_model = SCDepthModuleV3(sc_depth_hparams)
     if global_model is None:
         raise Exception("model_version is invalid! Only v3 is currently supported!")
     if restoring_federation_state:
-        current_round = int(federated_training_state["current_round"])
-        print(f"Trying to restore Global Model Weights from Round {current_round} ...")
-        round_model_dir = os.path.join(model_save_dir, f'round_{current_round}')
+        global_model_round = int(federated_training_state["current_round"])
+        print(f"Trying to restore Global Model Weights from Round {global_model_round} ...")
+        round_model_dir = os.path.join(model_save_dir, f'round_{global_model_round}')
         global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
-        while not os.path.exists(global_model_weights_filepath) and current_round > 0:
-            previous_round = current_round - 1
-            print(f"Global Weights from Round {current_round} were not saved, restoring from Round {previous_round}...")
+        while not os.path.exists(global_model_weights_filepath) and global_model_round > 0:
+            previous_round = global_model_round - 1
+            print(
+                f"Global Weights from Round {global_model_round} were not saved, restoring from Round {previous_round}...")
             round_model_dir = os.path.join(model_save_dir, f'round_{previous_round}')
             global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
-            current_round = previous_round
+            global_model_round = previous_round
         try:
             print(f'loading pre-trained global model weights from {global_model_weights_filepath} ...')
             global_weights = torch.load(global_model_weights_filepath)
@@ -282,7 +284,7 @@ if __name__ == "__main__":
             round_dir = f'round_{training_round}'
             round_model_dir = os.path.join(model_save_dir, round_dir)
             mkdir_if_missing(round_model_dir)
-            global_logger = TensorBoardLogger(save_dir=model_save_dir, name=round_dir)
+            global_logger = TensorBoardLogger(save_dir=model_save_dir, name=round_dir, version=0)
             global_checkpoint_path = os.path.join(round_model_dir, "last.ckpt")
             global_checkpoint_callback = ModelCheckpoint(dirpath=round_model_dir,
                                                          save_last=True,
@@ -295,166 +297,172 @@ if __name__ == "__main__":
             # persist federated training state (Federation Checkpoint)
             backup_federated_training_state(model_save_dir, federated_training_state)
 
-            # update each local model
-            print("\nComputing Local Updates ...")
-            for participant_id in participants_ids:
-                local_update_start_time = time.time()
+            if global_model_round is None or int(global_model_round) < int(training_round):
+                # update each local model
+                print("\nComputing Local Updates ...")
+                for participant_id in participants_ids:
+                    local_update_start_time = time.time()
 
-                # prepare local model for update
-                local_model = local_models[participant_id]
-                participant_dir = f'participant_{participant_id}'
-                participant_model_dir = os.path.join(round_model_dir, participant_dir)
-                local_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
-                if restoring_federation_state:
-                    try:
-                        print('load pre-trained model from {}'.format(local_checkpoint_path))
-                        local_model = local_model.load_from_checkpoint(
-                            checkpoint_path=local_checkpoint_path,
-                            strict=False,
-                            hparams=sc_depth_hparams
-                        )
-                        if participant_id != federated_training_state['current_participant_id']:
-                            continue
-                        else:
-                            restoring_federation_state = False
-                    except:
-                        traceback.print_exc()
-                        print(f"WARNING: Could not load local model checkpoint from {local_checkpoint_path}!"
-                              f"Will proceed with local model version initialized from global model.")
+                    # prepare local model for update
+                    local_model = local_models[participant_id]
+                    participant_dir = f'participant_{participant_id}'
+                    participant_model_dir = os.path.join(round_model_dir, participant_dir)
+                    local_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
+                    if restoring_federation_state:
+                        try:
+                            print('load pre-trained model from {}'.format(local_checkpoint_path))
+                            local_model = local_model.load_from_checkpoint(
+                                checkpoint_path=local_checkpoint_path,
+                                strict=False,
+                                hparams=sc_depth_hparams
+                            )
+                            if participant_id != federated_training_state['current_participant_id']:
+                                continue
+                            else:
+                                restoring_federation_state = False
+                        except:
+                            traceback.print_exc()
+                            print(f"WARNING: Could not load local model checkpoint from {local_checkpoint_path}!"
+                                  f"Will proceed with local model version initialized from global model.")
 
-                federated_training_state['current_participant_id'] = participant_id
+                    federated_training_state['current_participant_id'] = participant_id
 
-                # persist federated training state (Federation Checkpoint)
-                backup_federated_training_state(model_save_dir, federated_training_state)
+                    # persist federated training state (Federation Checkpoint)
+                    backup_federated_training_state(model_save_dir, federated_training_state)
 
-                print(f"Computing Local Update of Participant {participant_id} ...")
+                    print(f"Computing Local Update of Participant {participant_id} ...")
 
-                # configure data sampling for local training
-                local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
-                local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
-                local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
-                local_data = SCDepthDataModule(sc_depth_hparams,
-                                               selected_train_sample_indexes=local_sample_train_indexes,
-                                               selected_val_sample_indexes=local_sample_val_indexes,
-                                               selected_test_sample_indexes=local_sample_test_indexes)
+                    # configure data sampling for local training
+                    local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
+                    local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
+                    local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
+                    local_data = SCDepthDataModule(sc_depth_hparams,
+                                                   selected_train_sample_indexes=local_sample_train_indexes,
+                                                   selected_val_sample_indexes=local_sample_val_indexes,
+                                                   selected_test_sample_indexes=local_sample_test_indexes)
 
-                # configure logger for local training
-                local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir)
-                local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
-                                                            save_last=True,
-                                                            save_weights_only=False,
-                                                            every_n_train_steps=30,
-                                                            save_on_train_epoch_end=True,
-                                                            verbose=True)
+                    # configure logger for local training
+                    local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
+                    local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
+                                                                save_last=True,
+                                                                save_weights_only=False,
+                                                                every_n_train_steps=30,
+                                                                save_on_train_epoch_end=True,
+                                                                verbose=True)
 
-                # configure trainer for local training
-                trainer_config = dict(
-                    accelerator=device,
-                    log_every_n_steps=log_every_n_steps,
-                    num_sanity_val_steps=fed_train_num_local_sanity_val_steps,
-                    callbacks=[local_checkpoint_callback],
-                    logger=local_logger,
-                    benchmark=True
-                )
-                if fed_train_num_local_epochs > 0:
-                    trainer_config['max_epochs'] = fed_train_num_local_epochs
-                if fed_train_num_local_train_batches > 0:
-                    trainer_config['limit_train_batches'] = fed_train_num_local_train_batches
-                if fed_train_num_local_val_batches > 0:
-                    trainer_config['limit_val_batches'] = fed_train_num_local_val_batches
-                print("Local Trainer Config", trainer_config)
-                local_trainer = Trainer(**trainer_config)
+                    # configure trainer for local training
+                    trainer_config = dict(
+                        accelerator=device,
+                        log_every_n_steps=log_every_n_steps,
+                        num_sanity_val_steps=fed_train_num_local_sanity_val_steps,
+                        callbacks=[local_checkpoint_callback],
+                        logger=local_logger,
+                        benchmark=True
+                    )
+                    if fed_train_num_local_epochs > 0:
+                        trainer_config['max_epochs'] = fed_train_num_local_epochs
+                    if fed_train_num_local_train_batches > 0:
+                        trainer_config['limit_train_batches'] = fed_train_num_local_train_batches
+                    if fed_train_num_local_val_batches > 0:
+                        trainer_config['limit_val_batches'] = fed_train_num_local_val_batches
+                    print("Local Trainer Config", trainer_config)
+                    local_trainer = Trainer(**trainer_config)
 
-                # execute local training
-                fit_config = dict(model=local_model, datamodule=local_data)
-                if os.path.exists(local_checkpoint_path):
-                    fit_config.update(dict(ckpt_path=local_checkpoint_path))
-                local_trainer.fit(**fit_config)
-                if local_trainer.interrupted:
-                    raise KeyboardInterrupt("Local Update Interrupted")
+                    # execute local training
+                    fit_config = dict(model=local_model, datamodule=local_data)
+                    if os.path.exists(local_checkpoint_path):
+                        fit_config.update(dict(ckpt_path=local_checkpoint_path))
+                    local_trainer.fit(**fit_config)
+                    if local_trainer.interrupted:
+                        raise KeyboardInterrupt("Local Update Interrupted")
 
-                # validate local training
-                train_epoch_losses = local_model.train_epoch_losses
-                final_local_loss_train = train_epoch_losses[-1] if len(train_epoch_losses) > 0 else None
-                val_epoch_losses = local_model.val_epoch_losses
-                final_local_loss_val = val_epoch_losses[-1] if len(val_epoch_losses) > 0 else None
-                local_train_loss = copy.deepcopy(final_local_loss_train)
-                ignore = False
-                if local_train_loss is None or math.isnan(local_train_loss) or math.isinf(local_train_loss):
-                    print(f"Local Train Loss of Participant {participant_id} in Round {training_round} is invalid!")
-                    ignore = True
-                local_val_loss = copy.deepcopy(final_local_loss_val)
-                if local_val_loss is None or math.isnan(local_val_loss) or math.isinf(local_val_loss):
-                    print(f"Local Val Loss of Participant {participant_id} in Round {training_round} is invalid!")
-                    ignore = True
-                if ignore:
-                    print(f"Ignoring Local Update of Participant {participant_id} in Round {training_round}")
+                    # validate local training
+                    train_epoch_losses = local_model.train_epoch_losses
+                    final_local_loss_train = train_epoch_losses[-1] if len(train_epoch_losses) > 0 else None
+                    val_epoch_losses = local_model.val_epoch_losses
+                    final_local_loss_val = val_epoch_losses[-1] if len(val_epoch_losses) > 0 else None
+                    local_train_loss = copy.deepcopy(final_local_loss_train)
+                    ignore = False
+                    if local_train_loss is None or math.isnan(local_train_loss) or math.isinf(local_train_loss):
+                        print(f"Local Train Loss of Participant {participant_id} in Round {training_round} is invalid!")
+                        ignore = True
+                    local_val_loss = copy.deepcopy(final_local_loss_val)
+                    if local_val_loss is None or math.isnan(local_val_loss) or math.isinf(local_val_loss):
+                        print(f"Local Val Loss of Participant {participant_id} in Round {training_round} is invalid!")
+                        ignore = True
+                    if ignore:
+                        print(f"Ignoring Local Update of Participant {participant_id} in Round {training_round}")
+                    else:
+                        # log local losses
+                        local_train_losses_by_participant[participant_id] = local_train_loss.tolist()
+                        print(
+                            f"Local Train Loss of Participant {participant_id} in Round {training_round}: {local_train_loss}")
+                        local_val_losses_by_participant[participant_id] = local_val_loss
+                        print(
+                            f"Local Val Loss of Participant {participant_id} in Round {training_round}: {local_val_loss}")
+
+                        # log local model weights
+                        local_weights_of_participant = copy.deepcopy(local_model.state_dict())
+                        local_weights_by_participant[participant_id] = local_weights_of_participant
+                        local_model_bytes_of_participant = sys.getsizeof(local_weights_of_participant)
+                        local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
+                        print(f"Local Model Size of Participant {participant_id} in Round {training_round}: "
+                              f"{local_model_bytes_of_participant} Bytes")
+
+                        # log local model checkpoint coordinates for restore purposes
+                        local_model_dir_by_participant[participant_id] = participant_model_dir
+                        print(
+                            f"Local Model of Participant {participant_id} in Round {training_round} has been saved at:",
+                            participant_model_dir)
+
+                        print(f"Local Update of Participant {participant_id} Computed!")
+
+                    # log local update time
+                    local_update_elapsed_time = time.time() - local_update_start_time
+                    local_update_time_by_participant[participant_id] = float(local_update_elapsed_time)
+                    print("Local Update Took: {0:0.4f} seconds".format(local_update_elapsed_time))
+
+                    # persist federated training state (Federation Checkpoint)
+                    backup_federated_training_state(model_save_dir, federated_training_state)
+
+                # log average local performance
+                print("Local Updates Computed!")
+                local_train_losses = list(local_train_losses_by_participant.values())
+                if len(local_train_losses) > 0:
+                    avg_local_loss_train = sum(local_train_losses) / len(local_train_losses)
+                    print(f"Average Local Training Loss in Round {training_round} = {avg_local_loss_train}")
+                local_val_losses = list(local_val_losses_by_participant.values())
+                if len(local_val_losses) > 0:
+                    avg_local_loss_val = sum(local_val_losses) / len(local_val_losses)
+                    print(f"Average Local Validation Loss in Round {training_round} = {avg_local_loss_val}")
+                local_update_times = list(local_update_time_by_participant.values())
+                if len(local_update_times) > 0:
+                    avg_local_update_time = sum(local_update_times) / len(local_update_times)
+                    print(f"Average Local Update Times in Round {training_round} = {avg_local_update_time}")
+                local_model_bytes = list(local_model_bytes_by_participant.values())
+                if len(local_model_bytes) > 0:
+                    avg_local_model_bytes = sum(local_model_bytes) / len(local_model_bytes)
+                    print(f"Average Local Model Size in Round {training_round} = {avg_local_model_bytes} Bytes")
+
+                # update global weights
+                local_weights = list(local_weights_by_participant.values())
+                if len(local_weights) > 0:
+                    print(f"Computing Global Update ...")
+                    global_weights = average_weights(local_weights)
+                    for i in range(fed_train_num_participants):
+                        local_models[i] = load_weight_function(local_models[i], global_weights)
+                    global_model.load_state_dict(global_weights)
+                    print(f"Global Update Computed!")
                 else:
-                    # log local losses
-                    local_train_losses_by_participant[participant_id] = local_train_loss.tolist()
-                    print(
-                        f"Local Train Loss of Participant {participant_id} in Round {training_round}: {local_train_loss}")
-                    local_val_losses_by_participant[participant_id] = local_val_loss
-                    print(f"Local Val Loss of Participant {participant_id} in Round {training_round}: {local_val_loss}")
+                    print("WARNING: Not enough local updates were successful! Global Model will remain the same!")
 
-                    # log local model weights
-                    local_weights_of_participant = copy.deepcopy(local_model.state_dict())
-                    local_weights_by_participant[participant_id] = local_weights_of_participant
-                    local_model_bytes_of_participant = sys.getsizeof(local_weights_of_participant)
-                    local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
-                    print(f"Local Model Size of Participant {participant_id} in Round {training_round}: "
-                          f"{local_model_bytes_of_participant} Bytes")
-
-                    # log local model checkpoint coordinates for restore purposes
-                    local_model_dir_by_participant[participant_id] = participant_model_dir
-                    print(f"Local Model of Participant {participant_id} in Round {training_round} has been saved at:",
-                          participant_model_dir)
-
-                    print(f"Local Update of Participant {participant_id} Computed!")
-
-                # log local update time
-                local_update_elapsed_time = time.time() - local_update_start_time
-                local_update_time_by_participant[participant_id] = float(local_update_elapsed_time)
-                print("Local Update Took: {0:0.4f} seconds".format(local_update_elapsed_time))
-
-                # persist federated training state (Federation Checkpoint)
-                backup_federated_training_state(model_save_dir, federated_training_state)
-
-            # log average local performance
-            print("Local Updates Computed!")
-            local_train_losses = list(local_train_losses_by_participant.values())
-            if len(local_train_losses) > 0:
-                avg_local_loss_train = sum(local_train_losses) / len(local_train_losses)
-                print(f"Average Local Training Loss in Round {training_round} = {avg_local_loss_train}")
-            local_val_losses = list(local_val_losses_by_participant.values())
-            if len(local_val_losses) > 0:
-                avg_local_loss_val = sum(local_val_losses) / len(local_val_losses)
-                print(f"Average Local Validation Loss in Round {training_round} = {avg_local_loss_val}")
-            local_update_times = list(local_update_time_by_participant.values())
-            if len(local_update_times) > 0:
-                avg_local_update_time = sum(local_update_times) / len(local_update_times)
-                print(f"Average Local Update Times in Round {training_round} = {avg_local_update_time}")
-            local_model_bytes = list(local_model_bytes_by_participant.values())
-            if len(local_model_bytes) > 0:
-                avg_local_model_bytes = sum(local_model_bytes) / len(local_model_bytes)
-                print(f"Average Local Model Size in Round {training_round} = {avg_local_model_bytes} Bytes")
-
-            # update global weights
-            local_weights = list(local_weights_by_participant.values())
-            if len(local_weights) > 0:
-                print(f"Computing Global Update ...")
-                global_weights = average_weights(local_weights)
-                for i in range(fed_train_num_participants):
-                    local_models[i] = load_weight_function(local_models[i], global_weights)
-                global_model.load_state_dict(global_weights)
-                print(f"Global Update Computed!")
-            else:
-                print("WARNING: Not enough local updates were successful! Global Model will remain the same!")
-
-            print(f"Saving Updated Global Model Weights at {round_model_dir} ...")
-            global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
-            torch.save(global_weights, global_model_weights_filepath)
-            print(f"Global Model Weights saved as : {global_model_weights_filepath}")
+                print(f"Saving Updated Global Model Weights at {round_model_dir} ...")
+                global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
+                torch.save(global_weights, global_model_weights_filepath)
+                print(f"Global Model Weights saved as : {global_model_weights_filepath}")
+            elif restoring_federation_state:
+                restoring_federation_state = False
+                global_model_round = None
 
             print("Testing Global Model after Update...")
             global_trainer = Trainer(
