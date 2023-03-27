@@ -123,6 +123,7 @@ if __name__ == "__main__":
             traceback.print_exc()
             print(f"WARNING: Could not load pre-trained global model weights from {round_model_dir}!"
                   f"Will proceed with default global model initialization.")
+            global_model_round = None
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
     if federated_training_state.get('initial_global_weights_bytesize', None) is None:
