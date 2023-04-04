@@ -298,7 +298,8 @@ if __name__ == "__main__":
             # persist federated training state (Federation Checkpoint)
             backup_federated_training_state(model_save_dir, federated_training_state)
 
-            if global_model_round is None or int(global_model_round) < int(training_round):
+            skip_local_updates = global_model_round is not None and int(global_model_round) >= int(training_round)
+            if not skip_local_updates:
                 # update each local model
                 print("\nComputing Local Updates ...")
                 for participant_id in participants_ids:
@@ -474,7 +475,7 @@ if __name__ == "__main__":
                 benchmark=True
             )
             test_config = dict(model=global_model, datamodule=global_data)
-            if os.path.exists(global_checkpoint_path):
+            if skip_local_updates and os.path.exists(global_checkpoint_path):
                 test_config.update(dict(ckpt_path=global_checkpoint_path))
             global_trainer.test(**test_config)
             if global_trainer.interrupted:
