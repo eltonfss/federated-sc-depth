@@ -190,12 +190,19 @@ if __name__ == "__main__":
             train_dataset_size = global_data.get_dataset_size("train")
             val_dataset_size = global_data.get_dataset_size("val")
             test_dataset_size = global_data.get_dataset_size("test")
-            sample_train_indexes_by_participant = compute_iid_sample_partitions(train_dataset_size,
-                                                                                fed_train_num_participants)
-            sample_val_indexes_by_participant = compute_iid_sample_partitions(val_dataset_size,
-                                                                              fed_train_num_participants)
-            sample_test_indexes_by_participant = compute_iid_sample_partitions(test_dataset_size,
-                                                                               fed_train_num_participants)
+
+            # distribute sample indexes by participant
+            sample_train_indexes_by_participant = compute_iid_sample_partitions(
+                dataset_size=train_dataset_size, num_partitions=fed_train_num_participants
+            )
+            for participant_index in range(fed_train_num_participants):
+                # val indexes are always the same (every participant has the same val dataset)
+                val_dataset_size = global_data.get_dataset_size("val")
+                sample_val_indexes_by_participant[str(participant_index)] = [i for i in range(val_dataset_size)]
+                # test indexes are always the same (every participant has the same test dataset)
+                test_dataset_size = global_data.get_dataset_size("test")
+                sample_test_indexes_by_participant[str(participant_index)] = [i for i in range(test_dataset_size)]
+
         federated_training_state['sample_train_indexes_by_participant'] = sample_train_indexes_by_participant
         federated_training_state['sample_val_indexes_by_participant'] = sample_val_indexes_by_participant
         federated_training_state['sample_test_indexes_by_participant'] = sample_test_indexes_by_participant
