@@ -14,3 +14,4 @@ IPython
 seaborn
 einops
 timm
+plotly==5.14.0m
