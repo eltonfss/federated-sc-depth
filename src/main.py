@@ -2,6 +2,7 @@ import os
 import copy
 import time
 import traceback
+import gc
 
 import numpy as np
 from types import SimpleNamespace
@@ -61,6 +62,7 @@ if __name__ == "__main__":
         federated_training_state['device'] = device
     config_args.model_time = model_time
     config_args.start_time = str(start_datetime)
+    federated_training_state["training_paused"] = False
 
     # parse config args
     fed_train_num_rounds = config_args.fed_train_num_rounds
@@ -381,7 +383,14 @@ if __name__ == "__main__":
                     fit_config = dict(model=local_model, datamodule=local_data)
                     if os.path.exists(local_checkpoint_path):
                         fit_config.update(dict(ckpt_path=local_checkpoint_path))
-                    local_trainer.fit(**fit_config)
+                    try:
+                        local_trainer.fit(**fit_config)
+                    except RuntimeError as exception:
+                        if "out of memory" in str(exception):
+                            print(torch.cuda.list_gpu_processes())
+                            gc.collect()
+                            torch.cuda.empty_cache()
+                        raise exception
                     if local_trainer.interrupted:
                         raise KeyboardInterrupt("Local Update Interrupted")
 
@@ -470,6 +479,7 @@ if __name__ == "__main__":
                 torch.save(global_weights, global_model_weights_filepath)
                 print(f"Global Model Weights saved as : {global_model_weights_filepath}")
             elif restoring_federation_state:
+                print("Skipping Local Updates ...")
                 restoring_federation_state = False
                 global_model_round = None
 
@@ -529,10 +539,10 @@ if __name__ == "__main__":
 
         # persist federated training state (Federation Checkpoint)
         backup_federated_training_state(model_save_dir, federated_training_state)
-
     except KeyboardInterrupt as exception:
         print("\nFederated Training interruption request detected!")
         print("Saving Federated Training State and stopping training ...")
+        federated_training_state["training_paused"] = True
         backup_federated_training_state(model_save_dir, federated_training_state)
     finally:
         print("Federated Training State Saved at:", model_save_dir)
