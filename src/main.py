@@ -312,6 +312,7 @@ if __name__ == "__main__":
                 # update each local model
                 print("\nComputing Local Updates ...")
                 for participant_id in participants_ids:
+                    print(f"Computing Local Update of Participant {participant_id} ...")
                     local_update_start_time = time.time()
 
                     # prepare local model for update
@@ -340,8 +341,6 @@ if __name__ == "__main__":
 
                     # persist federated training state (Federation Checkpoint)
                     backup_federated_training_state(model_save_dir, federated_training_state)
-
-                    print(f"Computing Local Update of Participant {participant_id} ...")
 
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
@@ -523,6 +522,7 @@ if __name__ == "__main__":
 
             # persist federated training state (Federation Checkpoint)
             backup_federated_training_state(model_save_dir, federated_training_state)
+            restoring_federation_state = False
 
         # log final total training time
         print("Federated Training Computed!")
