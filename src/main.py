@@ -17,7 +17,7 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, \
-    average_weights_weighting_by_loss,load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
+    average_weights, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
     mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
@@ -410,7 +410,7 @@ if __name__ == "__main__":
                         ignore = True
                     if ignore:
                         print(f"Ignoring Local Update of Participant {participant_id} in Round {training_round}")
-                        local_val_losses_by_participant[participant_id] = 99999999999999999999999  # sudo infinite loss
+                        # local_val_losses_by_participant[participant_id] = 99999999999999999999999 # sudo infinite loss
                     else:
                         # log local losses
                         local_train_losses_by_participant[participant_id] = local_train_loss.tolist()
@@ -467,7 +467,7 @@ if __name__ == "__main__":
                 local_weights = list(local_weights_by_participant.values())
                 if len(local_weights) > 0:
                     print(f"Computing Global Update ...")
-                    global_weights = average_weights_weighting_by_loss(local_weights, local_val_losses)
+                    global_weights = average_weights(local_weights)
                     for i in range(fed_train_num_participants):
                         local_models[i] = load_weight_function(local_models[i], global_weights)
                     global_model.load_state_dict(global_weights)
