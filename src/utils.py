@@ -64,6 +64,24 @@ def average_weights(w, avg_weights=None):
     return w_avg
 
 
+def average_weights_weighting_by_loss(weights, losses):
+    """
+    Returns the weighted average of the weights, where the weight of each
+    local model is proportional to its performance on the validation set.
+    """
+    w_avg = copy.deepcopy(weights[0])
+    for key in weights[0].keys():
+        w_avg[key] = torch.zeros_like(weights[0][key]).float()  # set data type to Float
+        for i in range(len(weights)):
+            weight_i = 1 / losses[i]
+            w_avg[key] += weights[i][key] * weight_i
+    return w_avg
+
+
+
+
+
+
 def load_weights_without_batchnorm(model, w):
     """
     Returns the average of the weights.
