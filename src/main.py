@@ -354,10 +354,11 @@ if __name__ == "__main__":
 
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
+                    n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / 4))
                     local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
                                                                 save_last=True,
                                                                 save_weights_only=False,
-                                                                every_n_train_steps=30,
+                                                                every_n_train_steps=n_train_steps_to_save,
                                                                 save_on_train_epoch_end=True,
                                                                 verbose=True)
 
