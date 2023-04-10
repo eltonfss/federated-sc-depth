@@ -272,7 +272,7 @@ if __name__ == "__main__":
             participants_ids = participant_order_by_round.get(training_round, [])
             if not restoring_federation_state:
                 if fed_train_participant_order == "sequential":
-                    num_participants = math.floor(fed_train_num_participants_per_round * fed_train_num_participants)
+                    num_participants = fed_train_num_participants_per_round
                     participants_ids = [int(participant_id) for participant_id in range(fed_train_num_participants)]
                     number_of_partitions = math.ceil(fed_train_num_participants / num_participants)
                     current_partition = int(training_round)
