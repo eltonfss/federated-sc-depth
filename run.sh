@@ -5,15 +5,15 @@ echo "PYTHONPATH=$PYTHONPATH"
 CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
 DATASET_DIR="/home/eltons-pc/Datasets/kitti"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/16_04_2023_01:28:32"
-MAX_LOCAL_TRAIN_BATCHES=500
-MAX_LOCAL_VAL_BATCHES=500
+#RESTORE_DIR="$OUTPUT_DIR/16_04_2023_22:33:48"
+MAX_LOCAL_TRAIN_BATCHES=-1
+MAX_LOCAL_VAL_BATCHES=-1
 PARTICIPANT_SORTING="sequential"
-DISTRIBUTE_DATASET_BY_DRIVE=1
-NUM_ROUNDS=50
-NUM_PARTICIPANTS=34
-FRAC_PARTICIPANTS_PER_ROUND=0.10
-FED_TRAIN_NUM_EPOCHS=1
+DISTRIBUTE_DATASET_BY_DRIVE=0
+NUM_ROUNDS=10000
+NUM_PARTICIPANTS=1
+FRAC_PARTICIPANTS_PER_ROUND=1
+FED_TRAIN_NUM_EPOCHS=10
 NUM_WORKERS=8
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
@@ -21,4 +21,4 @@ python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_n
 --fed_train_by_drive=$DISTRIBUTE_DATASET_BY_DRIVE --fed_train_num_local_train_batches=$MAX_LOCAL_TRAIN_BATCHES \
 --fed_train_num_local_val_batches=$MAX_LOCAL_VAL_BATCHES --fed_train_state_backup_dir=$OUTPUT_DIR --gpu=0 \
 --fed_train_frac_participants_per_round=$FRAC_PARTICIPANTS_PER_ROUND \
---fed_train_state_restore_dir=$RESTORE_DIR
+#--fed_train_state_restore_dir=$RESTORE_DIR
