@@ -50,7 +50,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     participant_order_by_round = federated_training_state['participant_order_by_round']
     
     num_participants_per_round = num_participants * frac_participants_per_round
-    model_size_mb = sum(federated_training_state["global_model_bytes_by_round"].values()) / len(federated_training_state["global_model_bytes_by_round"].values()) / 1024 / 1014
+    model_size_mb = 111.417
     bytes_per_participant = model_size_mb * 2 / 1024 # Each participant uploads the entire model to the server, and downloads the updated model
     
     # compute number of steps by round (computational cost)
