@@ -177,6 +177,23 @@ if __name__ == "__main__":
                 test_dataset_size = global_data.get_dataset_size("test")
                 sample_test_indexes_by_participant[str(participant_index)] = [i for i in range(test_dataset_size)]
 
+            if config_args.fed_train_by_drive_sort == 'eager':
+                # order based on the number of samples
+                sorted_sample_train_indexes_by_participant = sorted(sample_train_indexes_by_participant.items(),
+                                                                    key=lambda x: len(x[1]), reverse=True)
+                for new_participant_index in range(len(sorted_sample_train_indexes_by_participant)):
+                    key_value_pair = sorted_sample_train_indexes_by_participant[new_participant_index]
+                    old_participant_index, participant_train_indexes = key_value_pair
+                    participant_val_indexes = sample_val_indexes_by_participant[old_participant_index]
+                    participant_test_indexes = sample_test_indexes_by_participant[old_participant_index]
+                    new_participant_index = str(new_participant_index)
+                    sample_train_indexes_by_participant[new_participant_index] = participant_train_indexes
+                    sample_val_indexes_by_participant[new_participant_index] = participant_val_indexes
+                    sample_test_indexes_by_participant[new_participant_index] = participant_test_indexes
+
+            elif config_args.fed_train_by_drive_sort == 'random':
+                raise NotImplementedError
+
             # check for duplicates
             intersection_set = set()
             list_of_sets = [set(value) for value in sample_train_indexes_by_participant.values()]
@@ -258,6 +275,19 @@ if __name__ == "__main__":
         # persist federated training state (Federation Checkpoint)
         backup_federated_training_state(model_save_dir, federated_training_state)
 
+        # compute participant order
+        num_participants = fed_train_num_participants_per_round
+        participants_ids = [int(participant_id) for participant_id in range(fed_train_num_participants)]
+        if fed_train_participant_order == 'sequential':
+            print("Local Updates of Participants will be computed in Sequential Order!")
+        elif fed_train_participant_order == "random":
+            participants_ids = list(np.random.choice(participants_ids, len(participants_ids), replace=False))
+            participants_ids = [int(participant_id) for participant_id in participants_ids]
+            print("Local Updates of Participants will be computed in Random Order!")
+        else:
+            raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
+                            f"Only 'sequential' and 'random' are supported!")
+
         for training_round in tqdm(range(int(start_training_round), int(fed_train_num_rounds))):
             training_round = str(training_round)
             federated_training_state['current_round'] = training_round
@@ -269,31 +299,18 @@ if __name__ == "__main__":
             local_train_loss_by_round_by_participant[training_round] = local_train_losses_by_participant
             local_val_losses_by_participant = local_val_loss_by_round_by_participant.get(training_round, {})
             local_val_loss_by_round_by_participant[training_round] = local_val_losses_by_participant
-            participants_ids = participant_order_by_round.get(training_round, [])
+            participants_ids = participant_order_by_round.get(training_round, participants_ids)
             if not restoring_federation_state:
-                if fed_train_participant_order == "sequential":
-                    num_participants = fed_train_num_participants_per_round
-                    participants_ids = [int(participant_id) for participant_id in range(fed_train_num_participants)]
-                    number_of_partitions = math.ceil(fed_train_num_participants / num_participants)
-                    current_partition = int(training_round)
-                    if current_partition > number_of_partitions - 1:
-                        current_partition = (int(training_round)) % number_of_partitions
-                    start_index = current_partition * num_participants
-                    max_index = len(participants_ids)
-                    next_partition = current_partition + 1
-                    end_index = min(start_index+num_participants, max_index)
-                    participants_ids = participants_ids[start_index:end_index]
-                    num_participants_by_round[training_round] = len(participants_ids)
-                    print("Local Updates of Participants will be computed in Sequential Order!")
-                elif fed_train_participant_order == "random":
-                    participants_ids = list(np.random.choice(range(fed_train_num_participants),
-                                                             fed_train_num_participants_per_round, replace=False))
-                    participants_ids = [int(participant_id) for participant_id in participants_ids]
-                    num_participants_by_round[training_round] = len(participants_ids)
-                    print("Local Updates of Participants will be computed in Random Order!")
-                else:
-                    raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
-                                    f"Only 'sequential' and 'random' are supported!")
+                number_of_partitions = math.ceil(fed_train_num_participants / num_participants)
+                current_partition = int(training_round)
+                if current_partition > number_of_partitions - 1:
+                    current_partition = (int(training_round)) % number_of_partitions
+                start_index = current_partition * num_participants
+                max_index = len(participants_ids)
+                next_partition = current_partition + 1
+                end_index = min(start_index+num_participants, max_index)
+                participants_ids = participants_ids[start_index:end_index]
+                num_participants_by_round[training_round] = len(participants_ids)
                 print(f"Participant Local Update Sequence is: {participants_ids}")
                 participant_order_by_round[training_round] = participants_ids
             local_update_time_by_participant = local_update_time_by_round_by_participant.get(training_round, {})

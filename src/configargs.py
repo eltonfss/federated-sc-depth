@@ -59,6 +59,7 @@ def get_configargs():
     parser.add_argument("--fed_train_local_learn_rate", type=float, default=0.001, help="the local learning rate used by each federated participant for training")
     parser.add_argument("--fed_train_iid", type=int, default=1, help="Use IID dataset distribution between federated participants. Default set to IID. Set to 0 for non-IID.")
     parser.add_argument("--fed_train_by_drive", type=int, default=0, help="Distributed dataset between federated participants based on the drives. Each participant only sees the data from one of the drives (only tested with KITTI)")
+    parser.add_argument("--fed_train_by_drive_sort", type=str, default="sequential", help="Sort drives sequentially ('sequential'), randomly ('random') or by most samples ('eager') ")
     parser.add_argument("--fed_train_x_noniid", action="store_true", help="Use non i.i.d x distribution between federated participants")
     parser.add_argument("--fed_train_average_without_bn", action="store_true", help="do not load the weights for the batchnorm layers")
     parser.add_argument("--fed_train_participant_order", type=str, help="Indicate if participants should be ordered randomnly or sequentially during federated training", default="random")
