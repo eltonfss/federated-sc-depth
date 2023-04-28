@@ -299,20 +299,20 @@ if __name__ == "__main__":
             local_train_loss_by_round_by_participant[training_round] = local_train_losses_by_participant
             local_val_losses_by_participant = local_val_loss_by_round_by_participant.get(training_round, {})
             local_val_loss_by_round_by_participant[training_round] = local_val_losses_by_participant
-            participants_ids = participant_order_by_round.get(training_round, participants_ids)
+            round_participants_ids = participant_order_by_round.get(training_round, participants_ids)
             if not restoring_federation_state:
                 number_of_partitions = math.ceil(fed_train_num_participants / num_participants)
                 current_partition = int(training_round)
                 if current_partition > number_of_partitions - 1:
                     current_partition = (int(training_round)) % number_of_partitions
                 start_index = current_partition * num_participants
-                max_index = len(participants_ids)
+                max_index = len(round_participants_ids)
                 next_partition = current_partition + 1
                 end_index = min(start_index+num_participants, max_index)
-                participants_ids = participants_ids[start_index:end_index]
-                num_participants_by_round[training_round] = len(participants_ids)
-                print(f"Participant Local Update Sequence is: {participants_ids}")
-                participant_order_by_round[training_round] = participants_ids
+                round_participants_ids = round_participants_ids[start_index:end_index]
+                num_participants_by_round[training_round] = len(round_participants_ids)
+                print(f"Participant Local Update Sequence is: {round_participants_ids}")
+                participant_order_by_round[training_round] = round_participants_ids
             local_update_time_by_participant = local_update_time_by_round_by_participant.get(training_round, {})
             local_update_time_by_round_by_participant[training_round] = local_update_time_by_participant
             local_model_bytes_by_participant = local_model_bytes_by_participant_by_round.get(training_round, {})
@@ -340,7 +340,7 @@ if __name__ == "__main__":
             if not skip_local_updates:
                 # update each local model
                 print("\nComputing Local Updates ...")
-                for participant_id in participants_ids:
+                for participant_id in round_participants_ids:
                     print(f"Computing Local Update of Participant {participant_id} ...")
                     local_update_start_time = time.time()
 
