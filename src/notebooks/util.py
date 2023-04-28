@@ -90,9 +90,9 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     
     # Create estimated communication cost figures
     if sudo_centralized:
-        communication_cost = [dataset_size_in_gb]
-        for round_num in range(1, len(global_test_loss)):
-            communication_cost.append(0)
+        communication_cost = []
+        for round_num in range(len(global_test_loss)):
+            communication_cost.append(dataset_size_in_gb)
         communication_cost = communication_cost[:round_cap]  
     communication_cost = [cost * cost_multiplier for cost in communication_cost]
     communication_cost_by_round_fig = go.Figure()
