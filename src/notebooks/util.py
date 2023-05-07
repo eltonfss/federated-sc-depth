@@ -27,7 +27,46 @@ def get_dir_size(dir_path, formats=None):
 
     return total_files, total_size_gb, filtered_files, filtered_size_gb
 
-def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1):
+def standardize_fig(fig):
+    fig.update_layout(plot_bgcolor='white')
+    fig.update_xaxes(mirror=True,ticks='outside',showline=True,linecolor='black', gridcolor='lightgrey')
+    fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='black', gridcolor='lightgrey')
+    return fig
+
+def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1):
+    
+    # Define variables
+    dir_path = os.path.join(centralized_training_dirpath, centralized_training_id)
+
+    # TODO Read CSV file
+    df = pd.read_csv(os.path.join(centralized_training_dirpath, centralized_training_id, 'val_loss.csv'))
+    num_steps = list(df['Step'])
+    test_loss = list(df['Value'])
+
+    # Create global test loss figures
+    lowest_test_loss = [min(test_loss[:i+1]) for i in range(len(test_loss))]
+    test_loss_by_training_step_fig = go.Figure()
+    test_loss_by_training_step_fig.add_trace(go.Scatter(x=num_steps, y=lowest_test_loss, name=label or centralized_training_id))
+    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig)
+    
+    # Create estimated communication cost figures
+    communication_costs = []
+    communication_cost = dataset_size_in_gb + (num_clients * model_size_mb / 1204)
+    #communication_cost = dataset_size_in_gb
+    for step in range(len(test_loss)):
+        communication_costs.append(communication_cost)
+    communication_costs = [cost * cost_multiplier for cost in communication_costs]
+    communication_cost_by_training_step_fig = go.Figure()
+    communication_cost_by_training_step_fig.add_trace(go.Scatter(x=num_steps, y=communication_costs, name=label or centralized_training_id))
+    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig)
+    
+    # Create combined test_loss and communication cost figures
+    test_loss_by_communication_cost_fig = go.Figure()
+    test_loss_by_communication_cost_fig.add_trace(go.Scatter(x=communication_costs, y=lowest_test_loss, name=label or centralized_training_id))
+
+    return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
+
+def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = 0):
     
     # Define variables
     dir_path = os.path.join(federated_training_dirpath, federated_training_id)
@@ -50,14 +89,13 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     participant_order_by_round = federated_training_state['participant_order_by_round']
     
     num_participants_per_round = num_participants * frac_participants_per_round
-    model_size_mb = 111.417
     bytes_per_participant = model_size_mb * 2 / 1024 # Each participant uploads the entire model to the server, and downloads the updated model
     
     # compute number of steps by round (computational cost)
     num_steps_per_round = []
     total_steps = 0
     for round_num, participant_order in participant_order_by_round.items():
-        num_participants = len(participant_order)
+        #num_participants = len(participant_order)
         for participant_id in participant_order:
             num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
             num_batches_available = num_samples_available / fed_train_local_batch_size
@@ -74,9 +112,12 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     communication_cost = [0] * len(global_test_loss)
     lowest_loss_so_far = float('inf')
     for round_idx in range(len(global_test_loss)):
-        round_communication_cost = num_participants_per_round * bytes_per_participant * (round_idx + 1)
+        #round_communication_cost = num_participants_per_round * bytes_per_participant * (round_idx + 1)
+        round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
         if global_test_loss[round_idx] < lowest_loss_so_far:
             lowest_loss_so_far = global_test_loss[round_idx]
+            #print('num_participants', num_participants)
+            #print('round_communication_cost', round_communication_cost)
         else:
             round_communication_cost = communication_cost[round_idx - 1]
         communication_cost[round_idx] = round_communication_cost
@@ -87,6 +128,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     test_loss_by_round_fig.add_trace(go.Scatter(x=list(range(len(lowest_global_test_loss))), y=lowest_global_test_loss, name=label or federated_training_id))
     test_loss_by_training_step_fig = go.Figure()
     test_loss_by_training_step_fig.add_trace(go.Scatter(x=num_steps_per_round, y=lowest_global_test_loss, name=label or federated_training_id))
+    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig)
     
     # Create estimated communication cost figures
     if sudo_centralized:
@@ -99,10 +141,11 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     communication_cost_by_round_fig.add_trace(go.Scatter(x=list(range(len(communication_cost))), y=communication_cost, name=label or federated_training_id))
     communication_cost_by_training_step_fig = go.Figure()
     communication_cost_by_training_step_fig.add_trace(go.Scatter(x=num_steps_per_round, y=communication_cost, name=label or federated_training_id))
+    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig)
     
     # Create combined test_loss and communication cost figures
     test_loss_by_communication_cost_fig = go.Figure()
     test_loss_by_communication_cost_fig.add_trace(go.Scatter(x=communication_cost, y=lowest_global_test_loss, name=label or federated_training_id))
-
+    test_loss_by_communication_cost_fig = standardize_fig(test_loss_by_communication_cost_fig)
         
     return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
