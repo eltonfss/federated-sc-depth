@@ -17,7 +17,7 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, \
-    average_weights, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
+    average_weights_by_num_samples, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
     mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
@@ -295,6 +295,7 @@ if __name__ == "__main__":
             print(f"\n | Federated Training Round : {training_round} | Global Model : {model_time}\n")
 
             local_weights_by_participant = {}
+            num_train_samples_by_participant = {}
             local_train_losses_by_participant = local_train_loss_by_round_by_participant.get(training_round, {})
             local_train_loss_by_round_by_participant[training_round] = local_train_losses_by_participant
             local_val_losses_by_participant = local_val_loss_by_round_by_participant.get(training_round, {})
@@ -373,6 +374,7 @@ if __name__ == "__main__":
 
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
+                    num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
                     local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
                     local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
                     local_data = SCDepthDataModule(sc_depth_hparams,
@@ -493,10 +495,11 @@ if __name__ == "__main__":
                     print(f"Average Local Model Size in Round {training_round} = {avg_local_model_bytes} Bytes")
 
                 # update global weights
-                local_weights = list(local_weights_by_participant.values())
-                if len(local_weights) > 0:
+                ordered_local_weights = list(local_weights_by_participant.values())
+                ordered_num_train_samples = list(num_train_samples_by_participant.values())
+                if len(ordered_local_weights) > 0:
                     print(f"Computing Global Update ...")
-                    global_weights = average_weights(local_weights)
+                    global_weights = average_weights_by_num_samples(ordered_local_weights, ordered_num_train_samples)
                     for i in range(fed_train_num_participants):
                         local_models[i] = load_weight_function(local_models[i], global_weights)
                     global_model.load_state_dict(global_weights)
