@@ -5,7 +5,7 @@ echo "PYTHONPATH=$PYTHONPATH"
 CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
 DATASET_DIR="/home/eltons-pc/Datasets/kitti"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/07_05_2023_10:37:28" # IID
+RESTORE_DIR="$OUTPUT_DIR/08_05_2023_14:52:54" # IID
 #RESTORE_DIR="$OUTPUT_DIR/06_05_2023_17:22:08" # BY DRIVE
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
@@ -17,7 +17,7 @@ DISTRIBUTE_DATASET_BY_DRIVE_SORT="eager"
 NUM_ROUNDS=30
 NUM_PARTICIPANTS=5
 FRAC_PARTICIPANTS_PER_ROUND=1
-FED_TRAIN_NUM_EPOCHS=1
+FED_TRAIN_NUM_EPOCHS=2
 NUM_WORKERS=8
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
