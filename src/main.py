@@ -191,6 +191,41 @@ if __name__ == "__main__":
                     sample_val_indexes_by_participant[new_participant_index] = participant_val_indexes
                     sample_test_indexes_by_participant[new_participant_index] = participant_test_indexes
 
+                if fed_train_num_participants < len(train_drive_ids) and \
+                        config_args.fed_train_by_drive_redistribute_remaining:
+
+                    # get indexes left out
+                    sample_train_indexes_left_out = []
+                    for participant_index, sample_train_indexes in sample_train_indexes_by_participant.items():
+                        if int(participant_index) < fed_train_num_participants:
+                            continue
+                        sample_train_indexes_left_out.extend(sample_train_indexes)
+                        sample_train_indexes_by_participant[participant_index] = []
+
+                    # sort them
+                    sample_train_indexes_left_out = sorted(sample_train_indexes_left_out)
+
+                    # randomize them
+                    sample_train_indexes_left_out = list(np.random.choice(
+                        sample_train_indexes_left_out, len(sample_train_indexes_left_out), replace=False)
+                    )
+
+                    # partition by participants
+                    number_of_samples_left_out = len(sample_train_indexes_left_out)
+                    partitions_of_sample_train_indexes_left_out = []
+                    partition_size = math.ceil(number_of_samples_left_out/fed_train_num_participants)
+                    for i in range(0, number_of_samples_left_out, partition_size):
+                        partitions_of_sample_train_indexes_left_out.append(
+                            sample_train_indexes_left_out[i:i+partition_size]
+                        )
+
+                    # extend participant indexes list with partition of indexes left out
+                    for participant_index, sample_train_indexes in sample_train_indexes_by_participant.items():
+                        if int(participant_index) >= fed_train_num_participants:
+                            break
+                        participant_partition = partitions_of_sample_train_indexes_left_out[int(participant_index)]
+                        sample_train_indexes_by_participant[participant_index].extend(participant_partition)
+
             elif config_args.fed_train_by_drive_sort == 'random':
                 raise NotImplementedError
 
