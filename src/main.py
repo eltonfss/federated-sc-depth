@@ -209,6 +209,7 @@ if __name__ == "__main__":
                     sample_train_indexes_left_out = list(np.random.choice(
                         sample_train_indexes_left_out, len(sample_train_indexes_left_out), replace=False)
                     )
+                    sample_train_indexes_left_out = [int(i) for i in sample_train_indexes_left_out]
 
                     # partition by participants
                     number_of_samples_left_out = len(sample_train_indexes_left_out)
