@@ -16,7 +16,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from datetime import datetime
 from pytorch_lightning import Trainer
 
-from utils import set_seed, restore_federated_training_state, backup_federated_training_state, \
+from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
     average_weights_by_num_samples, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
     mkdir_if_missing
 from configargs import get_configargs
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
     if federated_training_state.get('initial_global_weights_bytesize', None) is None:
-        federated_training_state['initial_global_weights_bytesize'] = sys.getsizeof(global_weights)
+        federated_training_state['initial_global_weights_bytesize'] = estimate_model_size(global_weights)
     print("Global Model Initialized!")
 
     # persist federated training state (Federation Checkpoint)
@@ -345,6 +345,16 @@ if __name__ == "__main__":
                     print(f"Computing Local Update of Participant {participant_id} ...")
                     local_update_start_time = time.time()
 
+                    # configure data sampling for local training
+                    local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
+                    num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
+                    local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
+                    local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
+                    local_data = SCDepthDataModule(sc_depth_hparams,
+                                                   selected_train_sample_indexes=local_sample_train_indexes,
+                                                   selected_val_sample_indexes=local_sample_val_indexes,
+                                                   selected_test_sample_indexes=local_sample_test_indexes)
+
                     # prepare local model for update
                     local_model = local_models[participant_id]
                     participant_dir = f'participant_{participant_id}'
@@ -358,6 +368,10 @@ if __name__ == "__main__":
                                 strict=False,
                                 hparams=sc_depth_hparams
                             )
+                            local_weights_of_participant = copy.deepcopy(local_model.state_dict())
+                            local_weights_by_participant[participant_id] = local_weights_of_participant
+                            local_model_bytes_of_participant = estimate_model_size(local_weights_of_participant)
+                            local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
                             if participant_id != federated_training_state['current_participant_id']:
                                 continue
                             else:
@@ -371,16 +385,6 @@ if __name__ == "__main__":
 
                     # persist federated training state (Federation Checkpoint)
                     backup_federated_training_state(model_save_dir, federated_training_state)
-
-                    # configure data sampling for local training
-                    local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
-                    num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
-                    local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
-                    local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
-                    local_data = SCDepthDataModule(sc_depth_hparams,
-                                                   selected_train_sample_indexes=local_sample_train_indexes,
-                                                   selected_val_sample_indexes=local_sample_val_indexes,
-                                                   selected_test_sample_indexes=local_sample_test_indexes)
 
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
@@ -454,7 +458,7 @@ if __name__ == "__main__":
                         # log local model weights
                         local_weights_of_participant = copy.deepcopy(local_model.state_dict())
                         local_weights_by_participant[participant_id] = local_weights_of_participant
-                        local_model_bytes_of_participant = sys.getsizeof(local_weights_of_participant)
+                        local_model_bytes_of_participant = estimate_model_size(local_weights_of_participant)
                         local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
                         print(f"Local Model Size of Participant {participant_id} in Round {training_round}: "
                               f"{local_model_bytes_of_participant} Bytes")
@@ -536,7 +540,7 @@ if __name__ == "__main__":
             print(f"Global Test Loss in Round {training_round}: {test_epoch_loss}")
 
             # log global model weights
-            global_model_bytes = sys.getsizeof(global_weights)
+            global_model_bytes = estimate_model_size(global_weights)
             global_model_bytes_by_round[training_round] = global_model_bytes
             print(f"Updated Global Model Size after Round {training_round}: {global_model_bytes} Bytes")
 

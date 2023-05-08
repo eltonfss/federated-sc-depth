@@ -1,6 +1,5 @@
 import copy
 import torch
-import numpy as np
 import os
 import json
 import random
@@ -159,3 +158,15 @@ def compute_iid_sample_partitions(dataset_size, num_partitions):
         sample_indexes_by_partition[str(partition_index)] = [int(i) for i in sample_indexes_by_partition[str(partition_index)]]
         available_sample_indexes = list(set(available_sample_indexes) - set(sample_indexes_by_partition[str(partition_index)]))
     return sample_indexes_by_partition
+
+
+def estimate_model_size(weights):
+    """
+    Estimates the size of the model in bytes based on the weights.
+    """
+    # Concatenate the tensors into a single vector
+    vector = torch.nn.utils.parameters_to_vector(list(weights.values()))
+    # Compute the size of the vector
+    size_bytes = vector.numel() * vector.element_size()
+    return size_bytes
+
