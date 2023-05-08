@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # initialize global model
     print("Initializing Global Model ...")
     sc_depth_hparams = copy.deepcopy(config_args)
-    sc_depth_hparams.batch_size = sc_depth_hparams.fed_train_local_batch_size
+    batch_size = sc_depth_hparams.batch_size = sc_depth_hparams.fed_train_local_batch_size
     sc_depth_hparams.lr = sc_depth_hparams.fed_train_local_learn_rate
     sc_depth_hparams.epoch_size = sc_depth_hparams.fed_train_num_local_train_batches
     global_model = None
@@ -384,6 +384,11 @@ if __name__ == "__main__":
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
                     num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
+                    if fed_train_num_local_train_batches > 0:
+                        num_train_samples_by_participant[participant_id] = min(
+                            num_train_samples_by_participant[participant_id],
+                            int(fed_train_num_local_train_batches * batch_size)
+                        )
                     local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
                     local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
                     local_data = SCDepthDataModule(sc_depth_hparams,
@@ -424,7 +429,7 @@ if __name__ == "__main__":
 
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
-                    n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / 4))
+                    n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / batch_size))
                     local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
                                                                 save_last=True,
                                                                 save_weights_only=False,
