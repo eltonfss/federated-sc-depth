@@ -63,20 +63,24 @@ def average_weights(w, avg_weights=None):
     return w_avg
 
 
-def average_weights_by_num_samples(w, num_samples, avg_weights=None):
+def average_weights_by_num_samples(w, num_samples):
     """
     Returns the weighted average of the weights based on the number of samples used by each client.
     """
-    if avg_weights is None:
-        avg_weights = copy.deepcopy(w[0])
-    else:
-        for key in avg_weights.keys():
-            avg_weights[key].zero_()
-
+    
     assert len(w) == len(num_samples), 'Each weight dict must have a corresponding number of samples and vice-versa!'
-
+    
     total_samples = sum(num_samples)
-    for i in range(len(w)):
+    weight = w[0]
+    sample_weight = (num_samples[0] / total_samples)
+    avg_weights = copy.deepcopy(weight)
+    for key in weight.keys():
+        sample_weighted_weights = weight[key] * sample_weight
+        if avg_weights[key].dtype == torch.int64:
+            sample_weighted_weights = sample_weighted_weights.long()
+        avg_weights[key] = sample_weighted_weights 
+    
+    for i in range(1, len(w)):
         weight = w[i]
         sample_weight = (num_samples[i] / total_samples)
         for key in weight.keys():
