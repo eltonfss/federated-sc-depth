@@ -385,11 +385,11 @@ if __name__ == "__main__":
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
                     num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
-                    if fed_train_num_local_train_batches > 0:
-                        num_train_samples_by_participant[participant_id] = min(
-                            num_train_samples_by_participant[participant_id],
-                            int(fed_train_num_local_train_batches * batch_size)
-                        )
+                    #if fed_train_num_local_train_batches > 0:
+                    #    num_train_samples_by_participant[participant_id] = min(
+                    #        num_train_samples_by_participant[participant_id],
+                    #        int(fed_train_num_local_train_batches * batch_size)
+                    #    )
                     local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
                     local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
                     local_data = SCDepthDataModule(sc_depth_hparams,
