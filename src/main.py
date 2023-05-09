@@ -73,8 +73,9 @@ if __name__ == "__main__":
     fed_train_num_local_train_batches = config_args.fed_train_num_local_train_batches
     fed_train_num_local_val_batches = config_args.fed_train_num_local_val_batches
     log_every_n_steps = config_args.log_every_n_steps
-    fed_train_num_participants_per_round = max(int(fed_train_frac_participants_per_round * fed_train_num_participants),
-                                               1)
+    fed_train_num_participants_per_round = max(
+        math.ceil(fed_train_frac_participants_per_round * fed_train_num_participants), 1
+    )
     load_weight_function = load_weights_without_batchnorm if config_args.fed_train_average_without_bn else load_weights
     fed_train_participant_order = config_args.fed_train_participant_order
     fed_train_num_local_sanity_val_steps = config_args.fed_train_num_local_sanity_val_steps
