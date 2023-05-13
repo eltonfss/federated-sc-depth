@@ -5,6 +5,7 @@ import json
 import numpy as np
 import math
 import plotly.graph_objects as go
+from utils import compute_iid_sample_partitions
 
 
 def get_dir_size(dir_path, formats=None):
@@ -27,11 +28,38 @@ def get_dir_size(dir_path, formats=None):
 
     return total_files, total_size_gb, filtered_files, filtered_size_gb
 
+
 def standardize_fig(fig):
-    fig.update_layout(plot_bgcolor='white')
-    fig.update_xaxes(mirror=True,ticks='outside',showline=True,linecolor='black', gridcolor='lightgrey')
+    fig.update_xaxes(mirror=True,ticks='outside',showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='black', gridcolor='lightgrey')
+    fig.update_layout(
+        plot_bgcolor='white',
+        xaxis={
+            'tickmode': 'array', # Set tick mode to 'array'
+            'tickangle': 0, # Rotate ticks for better readability
+            'mirror': True,
+            'ticks': 'outside',
+            'showline': True,
+            'linecolor': 'black',
+            'gridcolor': 'lightgrey',
+            'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+        },
+        yaxis={
+            'mirror': True,
+            'ticks': 'outside',
+            'showline': True,
+            'linecolor': 'black',
+            'gridcolor': 'lightgrey',
+            'tickfont': {'size': 20, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+        },
+        title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
+        xaxis_title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
+        yaxis_title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of y-axis title
+        legend={'font': {'size': 12, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1}
+    )
+    #fig.update_traces(marker={'line': {'width': 2}}) # Update thickness and color of outline
     return fig
+
 
 def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1):
     
@@ -66,7 +94,8 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
 
     return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
 
-def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = 0):
+
+def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None):
     
     # Define variables
     dir_path = os.path.join(federated_training_dirpath, federated_training_id)
@@ -89,6 +118,8 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     participant_order_by_round = federated_training_state['participant_order_by_round']
     
     num_participants_per_round = num_participants * frac_participants_per_round
+    if model_size_mb is None:
+        model_size_mb = sum(list(federated_training_state["global_model_bytes_by_round"].values()))/len(federated_training_state["global_model_bytes_by_round"]) / 1024 / 1024
     bytes_per_participant = model_size_mb * 2 / 1024 # Each participant uploads the entire model to the server, and downloads the updated model
     
     # compute number of steps by round (computational cost)
@@ -149,3 +180,120 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     test_loss_by_communication_cost_fig = standardize_fig(test_loss_by_communication_cost_fig)
         
     return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
+
+
+def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool):
+
+    if is_iid:
+        train_dataset_size = global_data.get_dataset_size("train")
+        sample_train_indexes_by_participant = compute_iid_sample_partitions(dataset_size=train_dataset_size, num_partitions=num_participants)
+        title = "Number of Samples by Participant (IID)"
+    else:
+        sample_train_indexes_by_participant = compute_sample_partitions_by_drive(global_data, num_participants, redistribute_remaining)
+        if redistribute_remaining:
+            title = "Number of Samples by Participant (By Drive With Redistribution)"
+        else:
+            title = "Number of Samples by Participant (By Drive Without Redistribution)"
+
+    sample_train_indexes_count_by_participant = {key: len(sample_train_indexes) for key, sample_train_indexes in sample_train_indexes_by_participant.items()}
+    fig_x = list(sample_train_indexes_count_by_participant.keys())
+    fig_y = list(sample_train_indexes_count_by_participant.values())
+    fig = go.Figure(go.Bar(
+        x=fig_x,
+        y=fig_y,
+        marker_color='rgb(26, 118, 255)',
+    ))
+
+    fig.update_layout(
+        plot_bgcolor='white',
+        xaxis={
+            'tickmode': 'array', # Set tick mode to 'array'
+            'tickvals': fig_x, # Set tick values to unique participants
+            'tickangle': 0, # Rotate ticks for better readability
+            'mirror': True,
+            'ticks': 'outside',
+            'showline': True,
+            'linecolor': 'black',
+            'gridcolor': 'lightgrey',
+            'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+        },
+        yaxis={
+            'mirror': True,
+            'ticks': 'outside',
+            'showline': True,
+            'linecolor': 'black',
+            'gridcolor': 'lightgrey',
+            'tickfont': {'size': 20, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+        },
+        title={'text': title, 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
+        xaxis_title={'text': "Participant", 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
+        yaxis_title={'text': "Number of Samples", 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}} # Update font size, family, color of y-axis title
+    )
+    #fig.update_traces(marker={'line': {'width': 2, 'color': 'black'}}) # Update thickness and color of bar outline
+    return fig
+
+
+def compute_sample_partitions_by_drive(global_data, num_participants, redistribute_remaining):
+    train_drive_ids = global_data.get_drive_ids("train")
+    sample_train_indexes_by_participant = {}
+    for participant_index, drive_id in enumerate(train_drive_ids):
+        train_drive_samples = global_data.get_samples_by_drive_id("train", drive_id)
+        train_drive_sample_indexes = [sample['sourceIndex'] for sample in train_drive_samples]
+        sample_train_indexes_by_participant[str(participant_index)] = train_drive_sample_indexes
+    sorted_sample_train_indexes_by_participant = sorted(sample_train_indexes_by_participant.items(),
+                                                        key=lambda x: len(x[1]), reverse=True)
+    for new_participant_index in range(len(sorted_sample_train_indexes_by_participant)):
+        key_value_pair = sorted_sample_train_indexes_by_participant[new_participant_index]
+        old_participant_index, participant_train_indexes = key_value_pair
+        new_participant_index = str(new_participant_index)
+        sample_train_indexes_by_participant[new_participant_index] = participant_train_indexes
+    if num_participants < len(train_drive_ids):
+        
+        if redistribute_remaining:
+            # get indexes left out
+            sample_train_indexes_left_out = []
+            for participant_index, sample_train_indexes in sample_train_indexes_by_participant.items():
+                if int(participant_index) < num_participants:
+                    continue
+                sample_train_indexes_left_out.extend(sample_train_indexes)
+                sample_train_indexes_by_participant[participant_index] = []
+
+            # sort them
+            sample_train_indexes_left_out = sorted(sample_train_indexes_left_out)
+
+            # randomize them
+            sample_train_indexes_left_out = list(np.random.choice(
+                sample_train_indexes_left_out, len(sample_train_indexes_left_out), replace=False)
+            )
+            sample_train_indexes_left_out = [int(i) for i in sample_train_indexes_left_out]
+
+            # partition by participants
+            number_of_samples_left_out = len(sample_train_indexes_left_out)
+            partitions_of_sample_train_indexes_left_out = []
+            partition_size = math.ceil(number_of_samples_left_out / num_participants)
+            for i in range(0, number_of_samples_left_out, partition_size):
+                partitions_of_sample_train_indexes_left_out.append(
+                    sample_train_indexes_left_out[i:i + partition_size]
+                )
+        # extend participant indexes list with partition of indexes left out
+        extended_sample_train_indexes_by_participant = {}
+        for participant_index, sample_train_indexes in sample_train_indexes_by_participant.items():
+            if int(participant_index) >= num_participants:
+                break
+            extended_sample_train_indexes_by_participant[participant_index] = sample_train_indexes_by_participant[participant_index]
+            if redistribute_remaining:
+                participant_partition = partitions_of_sample_train_indexes_left_out[int(participant_index)]
+                extended_sample_train_indexes_by_participant[participant_index].extend(participant_partition)
+        sample_train_indexes_by_participant = extended_sample_train_indexes_by_participant
+    intersection_set = set()
+    list_of_sets = [set(value) for value in sample_train_indexes_by_participant.values()]
+    for i, value_set_a in enumerate(list_of_sets):
+        for j, value_set_b in enumerate(list_of_sets):
+            if i == j:
+                continue
+            intersection = value_set_a.intersection(value_set_b)
+            intersection_set = intersection_set.union(intersection)
+    if len(intersection_set) > 0:
+        print(len(intersection_set), "duplicates found!")
+        raise Exception("Dataset Distribution Error!")
+    return sample_train_indexes_by_participant
