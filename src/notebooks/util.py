@@ -5,7 +5,9 @@ import json
 import numpy as np
 import math
 import plotly.graph_objects as go
+import plotly.io as pio
 from utils import compute_iid_sample_partitions
+pio.kaleido.scope.mathjax = None
 
 
 def get_dir_size(dir_path, formats=None):
@@ -58,6 +60,7 @@ def standardize_fig(fig):
         legend={'font': {'size': 12, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1}
     )
     #fig.update_traces(marker={'line': {'width': 2}}) # Update thickness and color of outline
+    pio.full_figure_for_development(fig, warn=False)
     return fig
 
 
@@ -223,13 +226,14 @@ def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_partici
             'showline': True,
             'linecolor': 'black',
             'gridcolor': 'lightgrey',
-            'tickfont': {'size': 20, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+            'tickfont': {'size': 25, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
         },
         title={'text': title, 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
-        xaxis_title={'text': "Participant", 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
-        yaxis_title={'text': "Number of Samples", 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}} # Update font size, family, color of y-axis title
+        xaxis_title={'text': "Participant", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
+        yaxis_title={'text': "Number of Samples", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}} # Update font size, family, color of y-axis title
     )
     #fig.update_traces(marker={'line': {'width': 2, 'color': 'black'}}) # Update thickness and color of bar outline
+    pio.full_figure_for_development(fig, warn=False)
     return fig
 
 
