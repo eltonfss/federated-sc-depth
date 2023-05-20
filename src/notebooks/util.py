@@ -31,7 +31,7 @@ def get_dir_size(dir_path, formats=None):
     return total_files, total_size_gb, filtered_files, filtered_size_gb
 
 
-def standardize_fig(fig):
+def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_size=None):
     fig.update_xaxes(mirror=True,ticks='outside',showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_layout(
@@ -44,7 +44,7 @@ def standardize_fig(fig):
             'showline': True,
             'linecolor': 'black',
             'gridcolor': 'lightgrey',
-            'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+            'tickfont': {'size': x_tick_size, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
         },
         yaxis={
             'mirror': True,
@@ -52,14 +52,15 @@ def standardize_fig(fig):
             'showline': True,
             'linecolor': 'black',
             'gridcolor': 'lightgrey',
-            'tickfont': {'size': 20, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+            'tickfont': {'size': y_tick_size, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
         },
         title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
-        xaxis_title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
-        yaxis_title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of y-axis title
-        legend={'font': {'size': 12, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1}
+        xaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
+        yaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of y-axis title
+        legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1}
     )
-    #fig.update_traces(marker={'line': {'width': 2}}) # Update thickness and color of outline
+    if trace_size:
+        fig.update_traces(line={'width': trace_size}) # Update thickness
     pio.full_figure_for_development(fig, warn=False)
     return fig
 
@@ -142,19 +143,24 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
     global_test_loss = global_test_loss[:round_cap]
 
-    # Calculate communication cost up to the lowest loss for each round
+    # Calculate communication cost and num_steps up to the lowest loss for each round
     communication_cost = [0] * len(global_test_loss)
+    num_steps = [0] * len(global_test_loss)
     lowest_loss_so_far = float('inf')
     for round_idx in range(len(global_test_loss)):
         #round_communication_cost = num_participants_per_round * bytes_per_participant * (round_idx + 1)
         round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+        round_num_steps = num_steps_per_round[round_idx]
         if global_test_loss[round_idx] < lowest_loss_so_far:
             lowest_loss_so_far = global_test_loss[round_idx]
             #print('num_participants', num_participants)
             #print('round_communication_cost', round_communication_cost)
         else:
             round_communication_cost = communication_cost[round_idx - 1]
+            round_num_steps = num_steps[round_idx - 1]
         communication_cost[round_idx] = round_communication_cost
+        num_steps[round_idx] = round_num_steps
+        
 
     # Create global test loss figures
     lowest_global_test_loss = [min(global_test_loss[:i+1]) for i in range(len(global_test_loss))]
@@ -181,59 +187,81 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     test_loss_by_communication_cost_fig = go.Figure()
     test_loss_by_communication_cost_fig.add_trace(go.Scatter(x=communication_cost, y=lowest_global_test_loss, name=label or federated_training_id))
     test_loss_by_communication_cost_fig = standardize_fig(test_loss_by_communication_cost_fig)
+    
+    # Create combined test_loss and communication cost figures
+    training_steps_by_round_fig = go.Figure()
+    training_steps_by_round_fig.add_trace(go.Scatter(x=list(range(len(num_steps))), y=num_steps, name=label or federated_training_id))
+    training_steps_by_round_fig = standardize_fig(training_steps_by_round_fig)
         
-    return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
+    return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig, training_steps_by_round_fig
 
 
-def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool):
+def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool, fig: go.Figure = None):
 
     if is_iid:
         train_dataset_size = global_data.get_dataset_size("train")
         sample_train_indexes_by_participant = compute_iid_sample_partitions(dataset_size=train_dataset_size, num_partitions=num_participants)
-        title = "Number of Samples by Participant (IID)"
+        title = "<b>Number of Samples by Participant (IID)</b>"
+        name = "<b>Random Distribution (IID)</b>"
+        bar_color = 'purple'
     else:
         sample_train_indexes_by_participant = compute_sample_partitions_by_drive(global_data, num_participants, redistribute_remaining)
         if redistribute_remaining:
-            title = "Number of Samples by Participant (By Drive With Redistribution)"
+            title = "<b>Number of Samples by Participant (By Drive With Redistribution)</b>"
+            bar_color = 'rgb(255, 118, 26)'
+            name = "<b>By Drive w/ Redistribution</b>"
         else:
-            title = "Number of Samples by Participant (By Drive Without Redistribution)"
+            title = "<b>Number of Samples by Participant (By Drive)</b>"
+            name = "<b>By Drive (Non-IID)</b>"
+            bar_color = 'rgb(26, 118, 255)'
 
     sample_train_indexes_count_by_participant = {key: len(sample_train_indexes) for key, sample_train_indexes in sample_train_indexes_by_participant.items()}
     fig_x = list(sample_train_indexes_count_by_participant.keys())
     fig_y = list(sample_train_indexes_count_by_participant.values())
-    fig = go.Figure(go.Bar(
-        x=fig_x,
-        y=fig_y,
-        marker_color='rgb(26, 118, 255)',
-    ))
+    if fig is None:
+        fig = go.Figure(go.Bar(
+            x=fig_x,
+            y=fig_y,
+            marker_color=bar_color,
+            name=name
+        ))
+        fig.update_layout(
+            plot_bgcolor='white',
+            xaxis={
+                'tickmode': 'array', # Set tick mode to 'array'
+                'tickvals': fig_x, # Set tick values to unique participants
+                'tickangle': 0, # Rotate ticks for better readability
+                'mirror': True,
+                'ticks': 'outside',
+                'showline': True,
+                'linecolor': 'black',
+                'gridcolor': 'lightgrey',
+                'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+            },
+            yaxis={
+                'mirror': True,
+                'ticks': 'outside',
+                'showline': True,
+                'linecolor': 'black',
+                'gridcolor': 'lightgrey',
+                'tickfont': {'size': 25, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+            },
+            title={'text': title, 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
+            xaxis_title={'text': "<b>Participant</b>", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
+            yaxis_title={'text': "<b>Number of Samples</b>", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}} # Update font size, family, color of y-axis title
+        )
+    else:
+        fig.add_trace(go.Bar(
+            x=fig_x,
+            y=fig_y,
+            marker_color=bar_color,
+            name=name
+        ))
 
-    fig.update_layout(
-        plot_bgcolor='white',
-        xaxis={
-            'tickmode': 'array', # Set tick mode to 'array'
-            'tickvals': fig_x, # Set tick values to unique participants
-            'tickangle': 0, # Rotate ticks for better readability
-            'mirror': True,
-            'ticks': 'outside',
-            'showline': True,
-            'linecolor': 'black',
-            'gridcolor': 'lightgrey',
-            'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
-        },
-        yaxis={
-            'mirror': True,
-            'ticks': 'outside',
-            'showline': True,
-            'linecolor': 'black',
-            'gridcolor': 'lightgrey',
-            'tickfont': {'size': 25, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
-        },
-        title={'text': title, 'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
-        xaxis_title={'text': "Participant", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
-        yaxis_title={'text': "Number of Samples", 'font': {'size': 30, 'family': 'Arial', 'color': 'black'}} # Update font size, family, color of y-axis title
-    )
+    
     #fig.update_traces(marker={'line': {'width': 2, 'color': 'black'}}) # Update thickness and color of bar outline
     pio.full_figure_for_development(fig, warn=False)
+    fig = standardize_fig(fig)
     return fig
 
 
