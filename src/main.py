@@ -64,6 +64,7 @@ if __name__ == "__main__":
     config_args.model_time = model_time
     config_args.start_time = str(start_datetime)
     federated_training_state["training_paused"] = False
+    skip_restore = federated_training_state.get("skip_restore", False)
 
     # parse config args
     fed_train_num_rounds = config_args.fed_train_num_rounds
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         global_model = SCDepthModuleV3(sc_depth_hparams)
     if global_model is None:
         raise Exception("model_version is invalid! Only v3 is currently supported!")
-    if restoring_federation_state:
+    if restoring_federation_state and not skip_restore:
         global_model_round = int(federated_training_state["current_round"])
         print(f"Trying to restore Global Model Weights from Round {global_model_round} ...")
         round_model_dir = os.path.join(model_save_dir, f'round_{global_model_round}')
@@ -375,7 +376,7 @@ if __name__ == "__main__":
             backup_federated_training_state(model_save_dir, federated_training_state)
 
             skip_local_updates = global_model_round is not None and int(global_model_round) >= int(training_round)
-            if not skip_local_updates:
+            if not skip_local_updates or skip_restore:
                 # update each local model
                 print("\nComputing Local Updates ...")
                 for participant_id in round_participants_ids:
@@ -385,7 +386,7 @@ if __name__ == "__main__":
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
                     num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
-                    #if fed_train_num_local_train_batches > 0:
+                    # if fed_train_num_local_train_batches > 0:
                     #    num_train_samples_by_participant[participant_id] = min(
                     #        num_train_samples_by_participant[participant_id],
                     #        int(fed_train_num_local_train_batches * batch_size)
@@ -403,25 +404,30 @@ if __name__ == "__main__":
                     participant_model_dir = os.path.join(round_model_dir, participant_dir)
                     local_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
                     if restoring_federation_state:
-                        try:
-                            print('load pre-trained model from {}'.format(local_checkpoint_path))
-                            local_model = local_model.load_from_checkpoint(
-                                checkpoint_path=local_checkpoint_path,
-                                strict=False,
-                                hparams=sc_depth_hparams
-                            )
-                            local_weights_of_participant = copy.deepcopy(local_model.state_dict())
-                            local_weights_by_participant[participant_id] = local_weights_of_participant
-                            local_model_bytes_of_participant = estimate_model_size(local_weights_of_participant)
-                            local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
-                            if participant_id != federated_training_state['current_participant_id']:
-                                continue
-                            else:
-                                restoring_federation_state = False
-                        except:
-                            traceback.print_exc()
-                            print(f"WARNING: Could not load local model checkpoint from {local_checkpoint_path}!"
-                                  f"Will proceed with local model version initialized from global model.")
+                        if not skip_restore:
+                            try:
+                                print('load pre-trained model from {}'.format(local_checkpoint_path))
+                                local_model = local_model.load_from_checkpoint(
+                                    checkpoint_path=local_checkpoint_path,
+                                    strict=False,
+                                    hparams=sc_depth_hparams
+                                )
+                                local_weights_of_participant = copy.deepcopy(local_model.state_dict())
+                                local_weights_by_participant[participant_id] = local_weights_of_participant
+                                local_model_bytes_of_participant = estimate_model_size(local_weights_of_participant)
+                                local_model_bytes_by_participant[participant_id] = local_model_bytes_of_participant
+                                if participant_id != federated_training_state['current_participant_id']:
+                                    continue
+                                else:
+                                    restoring_federation_state = False
+                            except:
+                                traceback.print_exc()
+                                print(f"WARNING: Could not load local model checkpoint from {local_checkpoint_path}!"
+                                      f"Will proceed with local model version initialized from global model.")
+                        else:
+                            print("Skipping Restore ...")
+                            skip_restore = False
+                            restoring_federation_state = False
 
                     federated_training_state['current_participant_id'] = participant_id
 
