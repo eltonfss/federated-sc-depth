@@ -426,7 +426,7 @@ if __name__ == "__main__":
                                       f"Will proceed with local model version initialized from global model.")
                         else:
                             print("Skipping Restore ...")
-                            skip_restore = False
+                            federated_training_state['skip_restore'] = skip_restore = False
                             restoring_federation_state = False
 
                     federated_training_state['current_participant_id'] = participant_id
