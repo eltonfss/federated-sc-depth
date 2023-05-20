@@ -19,6 +19,7 @@ def get_configargs():
     parser.add_argument('--model_version', type=str, default='v1', choices=['v1', 'v2', 'v3'])
     parser.add_argument('--resnet_layers', type=int, default=18)
     parser.add_argument('--ckpt_path', type=str, default=None, help='pretrained checkpoint path to load')
+    parser.add_argument('--pt_path', type=str, default=None, help='pretrained weights path to load')
 
     # loss for sc_v1
     parser.add_argument('--photo_weight', type=float, default=1.0, help='photometric loss weight')
