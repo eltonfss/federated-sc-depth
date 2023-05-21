@@ -16,10 +16,6 @@ export CUDA_VISIBLE_DEVICES=0
 #FEDERATED_MODEL_TIMESTAMP=13_05_2023_22:52:57
 #FEDERATION_ROUND=9
 
-# 5_participants_5_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=21_05_2023_11:54:28
-#FEDERATION_ROUND=TBD
-
 # 10_participants_5_per_round_12_rounds_1_local_epochs_by_drive
 #FEDERATED_MODEL_TIMESTAMP=08_05_2023_23:18:52
 #FEDERATION_ROUND=10
@@ -31,10 +27,6 @@ export CUDA_VISIBLE_DEVICES=0
 # 10_participants_10_per_round_12_rounds_1_local_epochs_by_drive
 #FEDERATED_MODEL_TIMESTAMP=12_05_2023_19:50:36
 #FEDERATION_ROUND=11
-
-# 5_participants_5_per_round_12_rounds_1_local_epochs_by_drive
-FEDERATED_MODEL_TIMESTAMP=11_05_2023_22:01:55
-FEDERATION_ROUND=11
 
 #CKPT=/home/eltons-pc/Logs/centralized_sc_depth/02_05_2023/last.ckpt
 PT="/home/eltons-pc/Backup/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
