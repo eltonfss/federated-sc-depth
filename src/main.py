@@ -315,16 +315,22 @@ if __name__ == "__main__":
 
         # compute participant order
         num_participants = fed_train_num_participants_per_round
-        participants_ids = [int(participant_id) for participant_id in range(fed_train_num_participants)]
-        if fed_train_participant_order == 'sequential':
-            print("Local Updates of Participants will be computed in Sequential Order!")
-        elif fed_train_participant_order == "random":
-            participants_ids = list(np.random.choice(participants_ids, len(participants_ids), replace=False))
-            participants_ids = [int(participant_id) for participant_id in participants_ids]
-            print("Local Updates of Participants will be computed in Random Order!")
+        participants_ids = federated_training_state.get('ordered_participant_ids', [])
+        if len(participants_ids) < num_participants:
+            participants_ids = [int(participant_id) for participant_id in range(fed_train_num_participants)]
+            if fed_train_participant_order == 'sequential':
+                print("Local Updates of Participants will be computed in Sequential Order!")
+            elif fed_train_participant_order == "random":
+                participants_ids = list(np.random.choice(participants_ids, len(participants_ids), replace=False))
+                participants_ids = [int(participant_id) for participant_id in participants_ids]
+                print("Local Updates of Participants will be computed in Random Order!")
+            else:
+                raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
+                                f"Only 'sequential' and 'random' are supported!")
         else:
-            raise Exception(f"Invalid Federated Training Participant Order: '{fed_train_participant_order}'! "
-                            f"Only 'sequential' and 'random' are supported!")
+            print("Ordered Participant IDS restored from federated training state!")
+        federated_training_state['ordered_participant_ids'] = participants_ids
+        print("Ordered Participant IDs:", participants_ids)
 
         for training_round in tqdm(range(int(start_training_round), int(fed_train_num_rounds))):
             training_round = str(training_round)
