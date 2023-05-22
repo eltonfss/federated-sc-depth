@@ -135,7 +135,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
             num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
             num_batches_available = num_samples_available / fed_train_local_batch_size
             num_batches_per_epoch = math.floor(min(fed_train_num_local_train_batches, num_batches_available))
-            num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch * fed_train_local_batch_size
+            num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
             total_steps += num_steps_participant
         num_steps_per_round.append(total_steps)
 
