@@ -57,7 +57,8 @@ def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_s
         title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
         xaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
         yaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of y-axis title
-        legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1}
+        legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1},
+        legend_tracegroupgap=2
     )
     if trace_size:
         fig.update_traces(line={'width': trace_size}) # Update thickness
