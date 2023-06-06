@@ -31,7 +31,7 @@ def get_dir_size(dir_path, formats=None):
     return total_files, total_size_gb, filtered_files, filtered_size_gb
 
 
-def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_size=None):
+def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_size=None, show_legend=True):
     fig.update_xaxes(mirror=True,ticks='outside',showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_layout(
@@ -57,16 +57,17 @@ def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_s
         title={'font': {'size': 20, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of title
         xaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of x-axis title
         yaxis_title={'font': {'size': 25, 'family': 'Arial', 'color': 'black'}}, # Update font size, family, color of y-axis title
-        legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.1},
-        legend_tracegroupgap=2
+        legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.0},
+        legend_tracegroupgap=10
     )
     if trace_size:
         fig.update_traces(line={'width': trace_size}) # Update thickness
+    fig.update_traces(showlegend=show_legend)
     pio.full_figure_for_development(fig, warn=False)
     return fig
 
 
-def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1):
+def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1, show_legend=True):
     
     # Define variables
     dir_path = os.path.join(centralized_training_dirpath, centralized_training_id)
@@ -80,7 +81,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     lowest_test_loss = [min(test_loss[:i+1]) for i in range(len(test_loss))]
     test_loss_by_training_step_fig = go.Figure()
     test_loss_by_training_step_fig.add_trace(go.Scatter(x=num_steps, y=lowest_test_loss, name=label or centralized_training_id))
-    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig)
+    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig, show_legend=show_legend)
     
     # Create estimated communication cost figures
     communication_costs = []
@@ -91,7 +92,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     communication_costs = [cost * cost_multiplier for cost in communication_costs]
     communication_cost_by_training_step_fig = go.Figure()
     communication_cost_by_training_step_fig.add_trace(go.Scatter(x=num_steps, y=communication_costs, name=label or centralized_training_id))
-    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig)
+    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig, show_legend=show_legend)
     
     # Create combined test_loss and communication cost figures
     test_loss_by_communication_cost_fig = go.Figure()
@@ -100,7 +101,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
 
 
-def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None):
+def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True):
     
     # Define variables
     dir_path = os.path.join(federated_training_dirpath, federated_training_id)
@@ -169,7 +170,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     test_loss_by_round_fig.add_trace(go.Scatter(x=list(range(len(lowest_global_test_loss))), y=lowest_global_test_loss, name=label or federated_training_id))
     test_loss_by_training_step_fig = go.Figure()
     test_loss_by_training_step_fig.add_trace(go.Scatter(x=num_steps_per_round, y=lowest_global_test_loss, name=label or federated_training_id))
-    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig)
+    test_loss_by_training_step_fig = standardize_fig(test_loss_by_training_step_fig, show_legend=show_legend)
     
     # Create estimated communication cost figures
     if sudo_centralized:
@@ -182,22 +183,22 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     communication_cost_by_round_fig.add_trace(go.Scatter(x=list(range(len(communication_cost))), y=communication_cost, name=label or federated_training_id))
     communication_cost_by_training_step_fig = go.Figure()
     communication_cost_by_training_step_fig.add_trace(go.Scatter(x=num_steps_per_round, y=communication_cost, name=label or federated_training_id))
-    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig)
+    communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig, show_legend=show_legend)
     
     # Create combined test_loss and communication cost figures
     test_loss_by_communication_cost_fig = go.Figure()
     test_loss_by_communication_cost_fig.add_trace(go.Scatter(x=communication_cost, y=lowest_global_test_loss, name=label or federated_training_id))
-    test_loss_by_communication_cost_fig = standardize_fig(test_loss_by_communication_cost_fig)
+    test_loss_by_communication_cost_fig = standardize_fig(test_loss_by_communication_cost_fig, show_legend=show_legend)
     
     # Create combined test_loss and communication cost figures
     training_steps_by_round_fig = go.Figure()
     training_steps_by_round_fig.add_trace(go.Scatter(x=list(range(len(num_steps))), y=num_steps, name=label or federated_training_id))
-    training_steps_by_round_fig = standardize_fig(training_steps_by_round_fig)
+    training_steps_by_round_fig = standardize_fig(training_steps_by_round_fig, show_legend=show_legend)
         
     return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig, training_steps_by_round_fig
 
 
-def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool, fig: go.Figure = None):
+def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool, fig: go.Figure = None, x_tick_size=25, y_tick_size=25, legend_size=25):
 
     if is_iid:
         train_dataset_size = global_data.get_dataset_size("train")
@@ -237,7 +238,7 @@ def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_partici
                 'showline': True,
                 'linecolor': 'black',
                 'gridcolor': 'lightgrey',
-                'tickfont': {'size': 14, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
+                'tickfont': {'size': 25, 'family': 'Arial', 'color': 'black'} # Update font size, family, color of tick labels
             },
             yaxis={
                 'mirror': True,
@@ -262,7 +263,7 @@ def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_partici
     
     #fig.update_traces(marker={'line': {'width': 2, 'color': 'black'}}) # Update thickness and color of bar outline
     pio.full_figure_for_development(fig, warn=False)
-    fig = standardize_fig(fig)
+    fig = standardize_fig(fig, x_tick_size=x_tick_size, y_tick_size=y_tick_size, legend_size=legend_size)
     return fig
 
 
