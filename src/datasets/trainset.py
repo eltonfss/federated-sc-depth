@@ -104,8 +104,11 @@ class TrainSet(DataSet):
         self.samples = sequence_set
         if selected_sample_indexes is not None:
             self.samples = [sequence_set[index] for index in selected_sample_indexes]
-        
-        self.build_samples_by_scene_id_map(self.samples)
+
+        if self.dataset == 'kitti':
+            self.build_samples_by_scene_id_map(self.samples)
+        else:
+            self.build_samples_by_drive_id_map(self.samples)
 
     def __getitem__(self, index):
         sample = self.samples[index]

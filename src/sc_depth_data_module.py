@@ -19,6 +19,7 @@ class SCDepthDataModule(LightningDataModule):
         self.val_dataset = None
         self.test_dataset = None
         self.save_hyperparameters()
+        self.dataset_name = hparams.dataset_name
         self.training_size = self.get_training_size(hparams.dataset_name)
         self.load_pseudo_depth = True if (
                 hparams.model_version == 'v3') else False
@@ -57,7 +58,8 @@ class SCDepthDataModule(LightningDataModule):
             skip_frames=self.hparams.hparams.skip_frames,
             use_frame_index=self.hparams.hparams.use_frame_index,
             with_pseudo_depth=self.load_pseudo_depth,
-            selected_sample_indexes=self.selected_train_sample_indexes
+            selected_sample_indexes=self.selected_train_sample_indexes,
+            dataset=self.dataset_name
         )
 
         if self.hparams.hparams.val_mode == 'depth':
@@ -144,34 +146,56 @@ class SCDepthDataModule(LightningDataModule):
             return self.test_dataset.get_scene_ids()
 
     def get_samples_by_scene_id(self, stage, scene_id):
-        if stage == "train":
-            return self.train_dataset.get_samples_by_scene_id(scene_id)
-        elif stage == "val":
-            return self.val_dataset.get_samples_by_scene_id(scene_id)
-        elif stage == "test":
-            return self.test_dataset.get_samples_by_scene_id(scene_id)
+        if self.dataset_name == 'kitti':
+            if stage == "train":
+                return self.train_dataset.get_samples_by_scene_id(scene_id)
+            elif stage == "val":
+                return self.val_dataset.get_samples_by_scene_id(scene_id)
+            elif stage == "test":
+                return self.test_dataset.get_samples_by_scene_id(scene_id)
+        else:
+            raise Exception(f"Dataset {self.dataset_name} is not organized in scenes!")
 
     def get_drive_ids(self, stage):
-        scene_ids_by_drive_id = self.get_scene_ids_by_drive_ids(stage)
-        return list(scene_ids_by_drive_id.keys())
+        if self.dataset_name == 'kitti':
+            scene_ids_by_drive_id = self.get_scene_ids_by_drive_ids(stage)
+            return list(scene_ids_by_drive_id.keys())
+        else:
+            if stage == "train":
+                return self.train_dataset.get_drive_ids()
+            elif stage == "val":
+                return self.val_dataset.get_drive_ids()
+            elif stage == "test":
+                return self.test_dataset.get_drive_ids()
 
     def get_scene_ids_by_drive_ids(self, stage):
-        scene_ids = self.get_scene_ids(stage)
-        scene_ids_by_drive_id = dict()
-        for scene_id in scene_ids:
-            drive_id = scene_id.split("_sync_")[0]
-            drive_scene_ids = scene_ids_by_drive_id.get(drive_id, list())
-            drive_scene_ids.append(scene_id)
-            scene_ids_by_drive_id[drive_id] = drive_scene_ids
-        return scene_ids_by_drive_id
+        if self.dataset_name == 'kitti':
+            scene_ids = self.get_scene_ids(stage)
+            scene_ids_by_drive_id = dict()
+            for scene_id in scene_ids:
+                drive_id = scene_id.split("_sync_")[0]
+                drive_scene_ids = scene_ids_by_drive_id.get(drive_id, list())
+                drive_scene_ids.append(scene_id)
+                scene_ids_by_drive_id[drive_id] = drive_scene_ids
+            return scene_ids_by_drive_id
+        else:
+            raise Exception(f"Dataset {self.dataset_name} is not organized in scenes!")
 
     def get_samples_by_drive_id(self, stage, drive_id):
-        scene_ids = self.get_scene_ids_by_drive_ids(stage)[drive_id]
-        drive_samples = list()
-        for scene_id in scene_ids:
-            scene_samples = self.get_samples_by_scene_id(stage, scene_id)
-            drive_samples.extend(scene_samples)
-        return drive_samples
+        if self.dataset_name == 'kitti':
+            scene_ids = self.get_scene_ids_by_drive_ids(stage)[drive_id]
+            drive_samples = list()
+            for scene_id in scene_ids:
+                scene_samples = self.get_samples_by_scene_id(stage, scene_id)
+                drive_samples.extend(scene_samples)
+            return drive_samples
+        else:
+            if stage == "train":
+                return self.train_dataset.get_samples_by_drive_id(drive_id)
+            elif stage == "val":
+                return self.val_dataset.get_samples_by_drive_id(drive_id)
+            elif stage == "test":
+                return self.test_dataset.get_samples_by_drive_id(drive_id)
 
     def get_dataset_size(self, stage):
         if stage == 'train':
