@@ -28,8 +28,12 @@ export CUDA_VISIBLE_DEVICES=0
 #FEDERATED_MODEL_TIMESTAMP=12_05_2023_19:50:36
 #FEDERATION_ROUND=11
 
+# 10_participants_5_per_round_12_rounds_3_local_epochs_by_drive
+FEDERATED_MODEL_TIMESTAMP=22_05_2023_19:44:26
+FEDERATION_ROUND=11
+
 #CKPT=/home/eltons-pc/Logs/centralized_sc_depth/02_05_2023/last.ckpt
-PT="/home/eltons-pc/Backup/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
+PT="/home/eltons-pc/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
 #TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized"
 TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
 TEST_OUTPUT_LOG="$TEST_OUTPUT_DIR/test.log"
