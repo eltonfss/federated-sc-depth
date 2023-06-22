@@ -138,11 +138,6 @@ if __name__ == "__main__":
     # persist federated training state (Federation Checkpoint)
     backup_federated_training_state(model_save_dir, federated_training_state)
 
-    # initialize local models
-    print("Initializing Local Models ...")
-    local_models = [copy.deepcopy(global_model) for _ in range(config_args.fed_train_num_participants)]
-    print("Local Models Initialized!")
-
     # distribute training data
     print("Setting Up Training Dataset ...")
     global_data = SCDepthDataModule(sc_depth_hparams)
@@ -383,6 +378,12 @@ if __name__ == "__main__":
 
             skip_local_updates = global_model_round is not None and int(global_model_round) >= int(training_round)
             if not skip_local_updates or skip_restore:
+
+                # initialize local models
+                print("Initializing Local Models ...")
+                local_models = {participant_id: copy.deepcopy(global_model) for participant_id in round_participants_ids}
+                print("Local Models Initialized!")
+
                 # update each local model
                 print("\nComputing Local Updates ...")
                 for participant_id in round_participants_ids:
@@ -558,8 +559,6 @@ if __name__ == "__main__":
                 if len(ordered_local_weights) > 0:
                     print(f"Computing Global Update ...")
                     global_weights = average_weights_by_num_samples(ordered_local_weights, ordered_num_train_samples)
-                    for i in range(fed_train_num_participants):
-                        local_models[i] = load_weight_function(local_models[i], global_weights)
                     global_model.load_state_dict(global_weights)
                     print(f"Global Update Computed!")
                 else:
