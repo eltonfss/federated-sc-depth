@@ -379,25 +379,16 @@ if __name__ == "__main__":
             skip_local_updates = global_model_round is not None and int(global_model_round) >= int(training_round)
             if not skip_local_updates or skip_restore:
 
-                # initialize local models
-                print("Initializing Local Models ...")
-                local_models = {participant_id: copy.deepcopy(global_model) for participant_id in round_participants_ids}
-                print("Local Models Initialized!")
-
                 # update each local model
                 print("\nComputing Local Updates ...")
                 for participant_id in round_participants_ids:
+
                     print(f"Computing Local Update of Participant {participant_id} ...")
                     local_update_start_time = time.time()
 
                     # configure data sampling for local training
                     local_sample_train_indexes = sample_train_indexes_by_participant[str(participant_id)]
                     num_train_samples_by_participant[participant_id] = len(local_sample_train_indexes)
-                    # if fed_train_num_local_train_batches > 0:
-                    #    num_train_samples_by_participant[participant_id] = min(
-                    #        num_train_samples_by_participant[participant_id],
-                    #        int(fed_train_num_local_train_batches * batch_size)
-                    #    )
                     local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
                     local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
                     local_data = SCDepthDataModule(sc_depth_hparams,
@@ -406,7 +397,7 @@ if __name__ == "__main__":
                                                    selected_test_sample_indexes=local_sample_test_indexes)
 
                     # prepare local model for update
-                    local_model = local_models[participant_id]
+                    local_model = copy.deepcopy(global_model)
                     participant_dir = f'participant_{participant_id}'
                     participant_model_dir = os.path.join(round_model_dir, participant_dir)
                     local_checkpoint_path = os.path.join(participant_model_dir, "last.ckpt")
@@ -463,7 +454,10 @@ if __name__ == "__main__":
                     if fed_train_num_local_epochs > 0:
                         trainer_config['max_epochs'] = fed_train_num_local_epochs
                     if fed_train_num_local_train_batches > 0:
-                        trainer_config['limit_train_batches'] = fed_train_num_local_train_batches
+                        trainer_config['limit_train_batches'] = min(
+                            math.floor(num_train_samples_by_participant[participant_id]/batch_size),
+                            fed_train_num_local_train_batches
+                        )
                     if fed_train_num_local_val_batches > 0:
                         trainer_config['limit_val_batches'] = fed_train_num_local_val_batches
                     print("Local Trainer Config", trainer_config)
