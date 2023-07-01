@@ -103,7 +103,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
 
 
-def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True):
+def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True, resample_local_batches=True, cost_upper_bound=True):
     
     # Define variables
     dir_path = os.path.join(federated_training_dirpath, federated_training_id)
@@ -138,7 +138,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
         for participant_id in participant_order:
             num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
             num_batches_available = num_samples_available / fed_train_local_batch_size
-            num_batches_per_epoch = math.floor(min(fed_train_num_local_train_batches, num_batches_available))
+            num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_batches_available)) 
             num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
             total_steps += num_steps_participant
         num_steps_per_round.append(total_steps/1000)
@@ -152,8 +152,10 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     num_steps = [0] * len(global_test_loss)
     lowest_loss_so_far = float('inf')
     for round_idx in range(len(global_test_loss)):
-        #round_communication_cost = num_participants_per_round * bytes_per_participant * (round_idx + 1)
-        round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+        if cost_upper_bound:
+            round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+        else:
+            round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
         round_num_steps = num_steps_per_round[round_idx]
         if global_test_loss[round_idx] < lowest_loss_so_far:
             lowest_loss_so_far = global_test_loss[round_idx]
@@ -335,7 +337,7 @@ def compute_sample_partitions_by_drive(global_data, num_participants, redistribu
     return sample_train_indexes_by_participant
 
 
-def get_metrics_by_num_participants(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier = 1):
+def get_metrics_by_num_participants(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier = 1, resample_local_batches=True, cost_upper_bound=True):
     
     best_val_loss_by_participants = {}
     communication_cost_by_participants = {}
@@ -383,7 +385,7 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
             for participant_id in participant_order:
                 num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
                 num_batches_available = num_samples_available / fed_train_local_batch_size
-                num_batches_per_epoch = math.floor(min(fed_train_num_local_train_batches, num_batches_available))
+                num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_batches_available))
                 num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
                 total_steps += num_steps_participant
             num_steps_per_round.append(total_steps)
@@ -397,7 +399,10 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
         num_steps = [0] * len(global_test_loss)
         lowest_loss_so_far = float('inf')
         for round_idx in range(len(global_test_loss)):
-            round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            if cost_upper_bound:
+                round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            else:
+                round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
             round_num_steps = num_steps_per_round[round_idx]
             if global_test_loss[round_idx] < lowest_loss_so_far:
                 lowest_loss_so_far = global_test_loss[round_idx]
@@ -437,7 +442,7 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
     return list_num_participants_per_round, best_val_loss_by_participants, communication_cost_by_participants, num_steps_by_participants, num_epochs_by_participants,fed_id_by_participants
 
 
-def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier = 1):
+def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier = 1, resample_local_batches=True, cost_upper_bound=True):
     
     best_val_loss_by_epochs = {}
     communication_cost_by_epochs = {}
@@ -482,7 +487,7 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
             for participant_id in participant_order:
                 num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
                 num_batches_available = num_samples_available / fed_train_local_batch_size
-                num_batches_per_epoch = math.floor(min(fed_train_num_local_train_batches, num_batches_available))
+                num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_batches_available))
                 num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
                 total_steps += num_steps_participant
             num_steps_per_round.append(total_steps)
@@ -496,7 +501,10 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
         num_steps = [0] * len(global_test_loss)
         lowest_loss_so_far = float('inf')
         for round_idx in range(len(global_test_loss)):
-            round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            if cost_upper_bound:
+                round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            else:
+                round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
             round_num_steps = num_steps_per_round[round_idx]
             if global_test_loss[round_idx] < lowest_loss_so_far:
                 lowest_loss_so_far = global_test_loss[round_idx]
@@ -533,7 +541,7 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
     return list_num_epochs, best_val_loss_by_epochs, communication_cost_by_epochs, num_steps_by_epochs, fed_id_by_epochs
 
 
-def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier=1):
+def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier=1, resample_local_batches=True, cost_upper_bound=True):
     best_val_loss_by_rounds = {}
     communication_cost_by_rounds = {}
     num_steps_by_rounds = {}
@@ -573,7 +581,7 @@ def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_t
             for participant_id in participant_order:
                 num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
                 num_batches_available = num_samples_available / fed_train_local_batch_size
-                num_batches_per_epoch = math.floor(min(fed_train_num_local_train_batches, num_batches_available))
+                num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_batches_available))
                 num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
                 total_steps += num_steps_participant
             num_steps_per_round.append(total_steps)
@@ -587,7 +595,10 @@ def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_t
         num_steps = [0] * len(global_test_loss)
         lowest_loss_so_far = float('inf')
         for round_idx in range(len(global_test_loss)):
-            round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            if cost_upper_bound:
+                round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            else:
+                round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
             round_num_steps = num_steps_per_round[round_idx]
             if global_test_loss[round_idx] < lowest_loss_so_far:
                 lowest_loss_so_far = global_test_loss[round_idx]
