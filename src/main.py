@@ -17,7 +17,7 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
-    average_weights_by_num_samples, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
+    average_weights_by_num_samples, average_weights_with_loss_optimization, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
     mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
@@ -80,6 +80,7 @@ if __name__ == "__main__":
     load_weight_function = load_weights_without_batchnorm if config_args.fed_train_average_without_bn else load_weights
     fed_train_participant_order = config_args.fed_train_participant_order
     fed_train_num_local_sanity_val_steps = config_args.fed_train_num_local_sanity_val_steps
+    fed_train_average_grid_optimization_range = config_args.fed_train_average_grid_optimization_range
 
     # set seed
     set_seed(config_args.seed)
@@ -287,6 +288,8 @@ if __name__ == "__main__":
             federated_training_state['local_model_dir_by_participant_by_round'] = {}
             federated_training_state['local_model_bytes_by_participant_by_round'] = {}
             federated_training_state['global_model_bytes_by_round'] = {}
+            federated_training_state['global_model_weights_of_weights_by_round'] = {}
+            federated_training_state['global_model_standard_fed_avg_by_round'] = {}
             federated_training_state['global_model_dir_by_round'] = {}
             federated_training_state['num_participants_by_round'] = {}
             federated_training_state['participant_order_by_round'] = {}
@@ -300,6 +303,8 @@ if __name__ == "__main__":
         local_model_bytes_by_participant_by_round = federated_training_state[
             'local_model_bytes_by_participant_by_round']
         global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round']
+        global_model_weights_of_weights_by_round = federated_training_state['global_model_weights_of_weights_by_round']
+        global_model_standard_fed_avg_by_round = federated_training_state['global_model_standard_fed_avg_by_round']
         global_model_dir_by_round = federated_training_state['global_model_dir_by_round']
         num_participants_by_round = federated_training_state['num_participants_by_round']
         participant_order_by_round = federated_training_state['participant_order_by_round']
@@ -372,6 +377,13 @@ if __name__ == "__main__":
                                                          mode='min',
                                                          verbose=True,
                                                          save_top_k=3)
+            global_trainer_config = dict(
+                accelerator=device,
+                log_every_n_steps=log_every_n_steps,
+                callbacks=[global_checkpoint_callback],
+                logger=global_logger,
+                benchmark=True
+            )
 
             # persist federated training state (Federation Checkpoint)
             backup_federated_training_state(model_save_dir, federated_training_state)
@@ -552,7 +564,20 @@ if __name__ == "__main__":
                 ordered_num_train_samples = list(num_train_samples_by_participant.values())
                 if len(ordered_local_weights) > 0:
                     print(f"Computing Global Update ...")
-                    global_weights = average_weights_by_num_samples(ordered_local_weights, ordered_num_train_samples)
+                    weights_of_weights = None
+                    standard_fed_avg = True
+                    if fed_train_average_grid_optimization_range == -1:
+                        global_weights, weights_of_weights = average_weights_by_num_samples(
+                            ordered_local_weights, ordered_num_train_samples
+                        )
+                    else:
+                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_loss_optimization(
+                            ordered_local_weights, ordered_num_train_samples,
+                            global_model, global_data, global_trainer_config,
+                            fed_train_average_grid_optimization_range
+                        )
+                    global_model_weights_of_weights_by_round[training_round] = weights_of_weights
+                    global_model_standard_fed_avg_by_round[training_round] = standard_fed_avg
                     global_model.load_state_dict(global_weights)
                     print(f"Global Update Computed!")
                 else:
@@ -568,13 +593,7 @@ if __name__ == "__main__":
                 global_model_round = None
 
             print("Testing Global Model after Update...")
-            global_trainer = Trainer(
-                accelerator=device,
-                log_every_n_steps=log_every_n_steps,
-                callbacks=[global_checkpoint_callback],
-                logger=global_logger,
-                benchmark=True
-            )
+            global_trainer = Trainer(**global_trainer_config)
             test_config = dict(model=global_model, datamodule=global_data)
             if skip_local_updates and os.path.exists(global_checkpoint_path):
                 test_config.update(dict(ckpt_path=global_checkpoint_path))
