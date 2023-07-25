@@ -132,6 +132,7 @@ if __name__ == "__main__":
             global_model_round = None
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
+    previous_global_model = copy.deepcopy(global_model)
     if federated_training_state.get('initial_global_weights_bytesize', None) is None:
         federated_training_state['initial_global_weights_bytesize'] = estimate_model_size(global_weights)
     print("Global Model Initialized!")
@@ -578,15 +579,11 @@ if __name__ == "__main__":
                         )
                     global_model_weights_of_weights_by_round[training_round] = weights_of_weights
                     global_model_standard_fed_avg_by_round[training_round] = standard_fed_avg
+                    previous_global_model = global_model
                     global_model.load_state_dict(global_weights)
                     print(f"Global Update Computed!")
                 else:
                     print("WARNING: Not enough local updates were successful! Global Model will remain the same!")
-
-                print(f"Saving Updated Global Model Weights at {round_model_dir} ...")
-                global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
-                torch.save(global_weights, global_model_weights_filepath)
-                print(f"Global Model Weights saved as : {global_model_weights_filepath}")
             elif restoring_federation_state:
                 print("Skipping Local Updates ...")
                 restoring_federation_state = False
@@ -602,8 +599,24 @@ if __name__ == "__main__":
                 raise KeyboardInterrupt("Global Update Interrupted!")
             test_epoch_losses = global_model.test_epoch_losses
             test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
+            if int(training_round) > 0:
+                previous_round = str(int(training_round) - 1)
+                previous_test_epoch_loss = float(global_test_loss_by_round[previous_round])
+                if previous_test_epoch_loss < test_epoch_loss and previous_global_model is not None:
+                    print("Updated Global Model has worse test loss than the previous one! ")
+                    print(f"Replacing it with the global model from round {previous_round}...")
+                    print(f"Test loss of round {training_round} will remain the same of round {previous_round}: {previous_test_epoch_loss}")
+                    test_epoch_loss = previous_test_epoch_loss
+                    global_model = previous_global_model
+                    global_weights = global_model.state_dict()
+
             global_test_loss_by_round[training_round] = test_epoch_loss
             print(f"Global Test Loss in Round {training_round}: {test_epoch_loss}")
+
+            print(f"Saving Global Model Weights at {round_model_dir} ...")
+            global_model_weights_filepath = os.path.join(round_model_dir, f"{global_model_weights_filename}.pt")
+            torch.save(global_weights, global_model_weights_filepath)
+            print(f"Global Model Weights saved as : {global_model_weights_filepath}")
 
             # log global model weights
             global_model_bytes = estimate_model_size(global_weights)
