@@ -579,7 +579,7 @@ if __name__ == "__main__":
                         )
                     global_model_weights_of_weights_by_round[training_round] = weights_of_weights
                     global_model_standard_fed_avg_by_round[training_round] = standard_fed_avg
-                    previous_global_model = global_model
+                    previous_global_model = copy.deepcopy(global_model)
                     global_model.load_state_dict(global_weights)
                     print(f"Global Update Computed!")
                 else:
@@ -607,7 +607,7 @@ if __name__ == "__main__":
                     print(f"Replacing it with the global model from round {previous_round}...")
                     print(f"Test loss of round {training_round} will remain the same of round {previous_round}: {previous_test_epoch_loss}")
                     test_epoch_loss = previous_test_epoch_loss
-                    global_model = previous_global_model
+                    global_model = copy.deepcopy(previous_global_model)
                     global_weights = global_model.state_dict()
 
             global_test_loss_by_round[training_round] = test_epoch_loss
