@@ -115,7 +115,7 @@ def average_weights_with_loss_optimization(
     print("Test Loss with standard FedAvg is:", best_test_loss)
 
     # Define the range of weights to try for each local model
-    weight_of_weights_range = [(i + 1) / grid_range_size for i in range(grid_range_size)]
+    weight_of_weights_range = [i/grid_range_size for i in range(grid_range_size)]
     weight_of_weights_range.reverse()
     print("Optimizing Averaging Weights with range:", weight_of_weights_range)
     # Iterate through all possible combinations of weights for the local models
