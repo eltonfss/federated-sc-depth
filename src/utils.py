@@ -96,7 +96,8 @@ def average_weights_by_num_samples(w, num_samples):
     return avg_weights, sample_weights
 
 
-def average_weights_with_loss_optimization(
+# TODO refactor to improve code reuse
+def average_weights_with_grid_search(
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
         global_trainer_config, grid_range_size
@@ -115,9 +116,9 @@ def average_weights_with_loss_optimization(
     print("Test Loss with standard FedAvg is:", best_test_loss)
 
     # Define the range of weights to try for each local model
-    weight_of_weights_range = [i/grid_range_size for i in range(grid_range_size)]
+    weight_of_weights_range = [i/grid_range_size for i in range(grid_range_size+1)]
     weight_of_weights_range.reverse()
-    print("Optimizing Averaging Weights with range:", weight_of_weights_range)
+    print("Optimizing Averaging Weights with Grid Search Range:", weight_of_weights_range)
     # Iterate through all possible combinations of weights for the local models
     for weights_of_weights in itertools.product(weight_of_weights_range, repeat=len(local_model_weight_list)):
         # skip combinations whose sum is greater than one
@@ -151,6 +152,127 @@ def average_weights_with_loss_optimization(
         print("Optimal averaging weights were obtained with Standard FedAvg!")
     else:
         print("Optimal averaging weights were obtained with Grid Search!")
+
+    return best_weights, best_weights_of_weights, standard_fed_avg
+
+
+# TODO refactor to improve code reuse
+def average_weights_with_random_search(
+        local_model_weight_list, num_samples_for_each_local_model,
+        global_model, global_data,
+        global_trainer_config, random_search_range
+):
+    assert len(local_model_weight_list) == len(num_samples_for_each_local_model), \
+        'Each weight dict must have a corresponding number of samples and vice-versa!'
+
+    # Initialize best weights and test loss with sample weighted averaging (standard FedAvg)
+    best_weights, best_weights_of_weights = average_weights_by_num_samples(
+        local_model_weight_list, num_samples_for_each_local_model
+    )
+    best_test_loss = evaluate_averaged_weights(best_weights, global_data, global_model, global_trainer_config)
+    standard_fed_avg = True
+    print("Weights of weights with standard FedAvg is:", best_weights_of_weights)
+    print("Test Loss with standard FedAvg is:", best_test_loss)
+
+    # Define the range of weights to try for each local model
+    print("Optimizing Averaging Weights with Random Search Range:", random_search_range)
+    # Iterate through all possible combinations of weights for the local models
+    for i in range(random_search_range):
+        # Generate random weights for each local model in the range [0, 1]
+        weights_of_weights = [random.uniform(0, 1) for j in range(len(local_model_weight_list))]
+        # Normalize the weights to have a sum of 1
+        weights_of_weights_sum = sum(weights_of_weights)
+        weights_of_weights = [w_of_w / weights_of_weights_sum for w_of_w in weights_of_weights]
+
+        # Compute the weighted average of the local weights using the current combination
+        avg_weights = {}
+        for i in range(len(local_model_weight_list)):
+            weight = local_model_weight_list[i]
+            if i == 0:
+                avg_weights = copy.deepcopy(weight)
+            for key in weight.keys():
+                weighted_weights = weight[key] * weights_of_weights[i]
+                if avg_weights[key].dtype == torch.int64:
+                    weighted_weights = weighted_weights.long()
+                if i == 0:
+                    avg_weights[key] = weighted_weights
+                else:
+                    avg_weights[key] += weighted_weights
+        print("Evaluating global model loss with Averaging Weights:", weights_of_weights)
+        test_epoch_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config)
+        # Check if this combination of weights resulted in a lower test loss
+        if test_epoch_loss is not None and test_epoch_loss < best_test_loss:
+            best_test_loss = test_epoch_loss
+            best_weights_of_weights = weights_of_weights
+            best_weights = avg_weights
+            standard_fed_avg = False
+    print("Best Averaging Weights is:", best_weights_of_weights)
+    print("Best Loss is:", best_test_loss)
+    if standard_fed_avg:
+        print("Optimal averaging weights were obtained with Standard FedAvg!")
+    else:
+        print("Optimal averaging weights were obtained with Random Search!")
+
+    return best_weights, best_weights_of_weights, standard_fed_avg
+
+
+# TODO refactor to improve code reuse
+def average_weights_with_semi_random_search(
+        local_model_weight_list, num_samples_for_each_local_model,
+        global_model, global_data,
+        global_trainer_config, semi_random_search_range
+):
+
+    assert len(local_model_weight_list) == len(num_samples_for_each_local_model), \
+        'Each weight dict must have a corresponding number of samples and vice-versa!'
+
+    # Initialize best weights and test loss with sample weighted averaging (standard FedAvg)
+    best_weights, best_weights_of_weights = average_weights_by_num_samples(
+        local_model_weight_list, num_samples_for_each_local_model
+    )
+    best_test_loss = evaluate_averaged_weights(best_weights, global_data, global_model, global_trainer_config)
+    standard_fed_avg = True
+    print("Weights of weights with standard FedAvg is:", best_weights_of_weights)
+    print("Test Loss with standard FedAvg is:", best_test_loss)
+
+    # Define the range of weights to try for each local model
+    print("Optimizing Averaging Weights with Semi-Random Search Range:", semi_random_search_range)
+    # Iterate through all possible combinations of weights for the local models
+    for i in range(semi_random_search_range):
+        # Generate random weights for each local model in the range [0, best_weights_of_weights[j]]
+        weights_of_weights = [random.uniform(0, best_weights_of_weights[j]) for j in range(len(local_model_weight_list))]
+        # Normalize the weights to have a sum of 1
+        weights_of_weights_sum = sum(weights_of_weights)
+        weights_of_weights = [w_of_w / weights_of_weights_sum for w_of_w in weights_of_weights]
+
+        # Compute the weighted average of the local weights using the current combination
+        avg_weights = {}
+        for i in range(len(local_model_weight_list)):
+            weight = local_model_weight_list[i]
+            if i == 0:
+                avg_weights = copy.deepcopy(weight)
+            for key in weight.keys():
+                weighted_weights = weight[key] * weights_of_weights[i]
+                if avg_weights[key].dtype == torch.int64:
+                    weighted_weights = weighted_weights.long()
+                if i == 0:
+                    avg_weights[key] = weighted_weights
+                else:
+                    avg_weights[key] += weighted_weights
+        print("Evaluating global model loss with Averaging Weights:", weights_of_weights)
+        test_epoch_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config)
+        # Check if this combination of weights resulted in a lower test loss
+        if test_epoch_loss is not None and test_epoch_loss < best_test_loss:
+            best_test_loss = test_epoch_loss
+            best_weights_of_weights = weights_of_weights
+            best_weights = avg_weights
+            standard_fed_avg = False
+    print("Best Averaging Weights is:", best_weights_of_weights)
+    print("Best Loss is:", best_test_loss)
+    if standard_fed_avg:
+        print("Optimal averaging weights were obtained with Standard FedAvg!")
+    else:
+        print("Optimal averaging weights were obtained with Semi-Random Search!")
 
     return best_weights, best_weights_of_weights, standard_fed_avg
 
