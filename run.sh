@@ -2,13 +2,13 @@ export PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_m
 echo "PYTORCH_CUDA_ALLOC_CONF=$PYTORCH_CUDA_ALLOC_CONF"
 export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
-#CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
-#DATASET_DIR="/home/eltons-pc/Datasets/kitti"
-CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
-DATASET_DIR="/home/eltons-pc/Datasets/ddad"
+CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
+DATASET_DIR="/home/eltons-pc/Datasets/kitti"
+#CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
+#DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-#RESTORE_DIR="$OUTPUT_DIR/14_06_2023_23:04:06" # IID
-RESTORE_DIR="$OUTPUT_DIR/18_07_2023_23:24:15" # BY DRIVE
+#RESTORE_DIR="$OUTPUT_DIR/24_07_2023_13:29:09" # IID
+#RESTORE_DIR="$OUTPUT_DIR/24_07_2023_23:44:13" # BY DRIVE
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -17,11 +17,36 @@ PARTICIPANT_SORTING="random" # BY DRIVE
 DISTRIBUTE_DATASET_BY_DRIVE=1 # BY DRIVE
 DISTRIBUTE_DATASET_BY_DRIVE_SORT="eager"
 DISTRIBUTE_DATASET_BY_DRIVE_REDISTRIBUTE_REMAINING=1
-NUM_ROUNDS=30
+NUM_ROUNDS=36
 NUM_PARTICIPANTS=12
-FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333
-FED_TRAIN_NUM_EPOCHS=1
 NUM_WORKERS=8
+FED_TRAIN_SKIP_BAD_ROUNDS=1
+
+# LOCAL EPOCHS
+FED_TRAIN_NUM_EPOCHS=1
+#FED_TRAIN_NUM_EPOCHS=2
+#FED_TRAIN_NUM_EPOCHS=3
+
+# PARTICIPATION RATION
+#FRAC_PARTICIPANTS_PER_ROUND=0.16666666666666666 # 1/6
+#FRAC_PARTICIPANTS_PER_ROUND=0.25 # 1/4
+FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
+#FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
+#FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
+
+# GRID SEARCH RANGE
+#FED_TRAIN_AVG_SEARCH_STRATEGY="GridSearch"
+#FED_TRAIN_AVG_SEARCH_RANGE=1
+#FED_TRAIN_AVG_SEARCH_RANGE=2
+#FED_TRAIN_AVG_SEARCH_RANGE=3
+#FED_TRAIN_AVG_SEARCH_RANGE=4
+#FED_TRAIN_AVG_SEARCH_RANGE=6
+
+# (SEMI-) RANDOM SEARCH RANGE
+#FED_TRAIN_AVG_SEARCH_STRATEGY="RandomSearch"
+FED_TRAIN_AVG_SEARCH_STRATEGY="SemiRandomSearch"
+FED_TRAIN_AVG_SEARCH_RANGE=10
+
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
 --num_workers=$NUM_WORKERS --fed_train_participant_order=$PARTICIPANT_SORTING \
@@ -30,5 +55,8 @@ python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_n
 --fed_train_by_drive_sort=$DISTRIBUTE_DATASET_BY_DRIVE_SORT \
 --fed_train_num_local_val_batches=$MAX_LOCAL_VAL_BATCHES --fed_train_state_backup_dir=$OUTPUT_DIR --gpu=0 \
 --fed_train_frac_participants_per_round=$FRAC_PARTICIPANTS_PER_ROUND \
---fed_train_state_restore_dir=$RESTORE_DIR
+--fed_train_skip_bad_rounds=$FED_TRAIN_SKIP_BAD_ROUNDS \
+--fed_train_average_search_strategy=$FED_TRAIN_AVG_SEARCH_STRATEGY \
+--fed_train_average_search_range=$FED_TRAIN_AVG_SEARCH_RANGE \
+#--fed_train_state_restore_dir=$RESTORE_DIR
 

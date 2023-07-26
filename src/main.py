@@ -17,8 +17,9 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
-    average_weights_by_num_samples, average_weights_with_loss_optimization, load_weights_without_batchnorm, load_weights, compute_iid_sample_partitions, \
-    mkdir_if_missing
+    average_weights_by_num_samples, average_weights_with_grid_search, average_weights_with_random_search, \
+    average_weights_with_semi_random_search, load_weights_without_batchnorm, load_weights, \
+    compute_iid_sample_partitions, mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
@@ -80,7 +81,9 @@ if __name__ == "__main__":
     load_weight_function = load_weights_without_batchnorm if config_args.fed_train_average_without_bn else load_weights
     fed_train_participant_order = config_args.fed_train_participant_order
     fed_train_num_local_sanity_val_steps = config_args.fed_train_num_local_sanity_val_steps
-    fed_train_average_grid_optimization_range = config_args.fed_train_average_grid_optimization_range
+    fed_train_average_search_strategy = config_args.fed_train_average_search_strategy
+    fed_train_average_search_range = config_args.fed_train_average_search_range
+    fed_train_skip_bad_rounds = config_args.fed_train_skip_bad_rounds
 
     # set seed
     set_seed(config_args.seed)
@@ -567,15 +570,27 @@ if __name__ == "__main__":
                     print(f"Computing Global Update ...")
                     weights_of_weights = None
                     standard_fed_avg = True
-                    if fed_train_average_grid_optimization_range == -1:
-                        global_weights, weights_of_weights = average_weights_by_num_samples(
-                            ordered_local_weights, ordered_num_train_samples
-                        )
-                    else:
-                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_loss_optimization(
+                    if fed_train_average_search_strategy == "GridSearch":
+                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_grid_search(
                             ordered_local_weights, ordered_num_train_samples,
                             global_model, global_data, global_trainer_config,
-                            fed_train_average_grid_optimization_range
+                            fed_train_average_search_range
+                        )
+                    elif fed_train_average_search_strategy == "RandomSearch":
+                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_random_search(
+                            ordered_local_weights, ordered_num_train_samples,
+                            global_model, global_data, global_trainer_config,
+                            fed_train_average_search_range
+                        )
+                    elif fed_train_average_search_strategy == "SemiRandomSearch":
+                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_semi_random_search(
+                            ordered_local_weights, ordered_num_train_samples,
+                            global_model, global_data, global_trainer_config,
+                            fed_train_average_search_range
+                        )
+                    else:
+                        global_weights, weights_of_weights = average_weights_by_num_samples(
+                            ordered_local_weights, ordered_num_train_samples
                         )
                     global_model_weights_of_weights_by_round[training_round] = weights_of_weights
                     global_model_standard_fed_avg_by_round[training_round] = standard_fed_avg
@@ -599,7 +614,7 @@ if __name__ == "__main__":
                 raise KeyboardInterrupt("Global Update Interrupted!")
             test_epoch_losses = global_model.test_epoch_losses
             test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
-            if int(training_round) > 0:
+            if int(training_round) > 0 and fed_train_skip_bad_rounds > 0:
                 previous_round = str(int(training_round) - 1)
                 previous_test_epoch_loss = float(global_test_loss_by_round[previous_round])
                 if previous_test_epoch_loss < test_epoch_loss and previous_global_model is not None:
