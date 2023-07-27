@@ -9,8 +9,10 @@ import cv2
 from PIL import Image
 import itertools
 from pytorch_lightning import Trainer
+rng_seed = np.random.default_rng(12345)
 
 FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -97,6 +99,31 @@ def average_weights_by_num_samples(w, num_samples):
 
 
 # TODO refactor to improve code reuse
+def compute_grid_range_size(local_model_weight_list, grid_length):
+    # Generate the list of values for y
+    weights_of_weights = [i / grid_length for i in range(grid_length + 1)]
+    # Count the combinations where the sum of elements is 1
+    weights_of_weights_grid = itertools.product(weights_of_weights, repeat=len(local_model_weight_list))
+    grid_range_size = sum(1 for w_of_w in weights_of_weights_grid if sum(w_of_w) == 1)
+    return grid_range_size
+
+
+def compute_optimal_grid_length(desired_grid_range_size, local_model_weight_list, lower_bound=1, upper_bound=100):
+    while lower_bound <= upper_bound:
+        mid = (lower_bound + upper_bound) // 2
+        grid_range_size = compute_grid_range_size(local_model_weight_list, mid)
+        if grid_range_size == desired_grid_range_size:
+            return mid
+        elif grid_range_size < desired_grid_range_size:
+            lower_bound = mid + 1
+        else:
+            upper_bound = mid - 1
+    # If an exact match is not found, return the closest value to desired_grid_range_size
+    diff_lower_bound = compute_grid_range_size(local_model_weight_list, lower_bound) - desired_grid_range_size
+    diff_upper_bound = desired_grid_range_size - compute_grid_range_size(local_model_weight_list, upper_bound)
+    return lower_bound if diff_lower_bound < diff_upper_bound else upper_bound
+
+
 def average_weights_with_grid_search(
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
@@ -116,7 +143,8 @@ def average_weights_with_grid_search(
     print("Test Loss with standard FedAvg is:", best_test_loss)
 
     # Define the range of weights to try for each local model
-    weight_of_weights_range = [i/grid_range_size for i in range(grid_range_size+1)]
+    grid_length = compute_optimal_grid_length(grid_range_size, local_model_weight_list)
+    weight_of_weights_range = [i/grid_length for i in range(grid_length+1)]
     weight_of_weights_range.reverse()
     print("Optimizing Averaging Weights with Grid Search Range:", weight_of_weights_range)
     # Iterate through all possible combinations of weights for the local models
@@ -179,7 +207,7 @@ def average_weights_with_random_search(
     # Iterate through all possible combinations of weights for the local models
     for i in range(random_search_range):
         # Generate random weights for each local model in the range [0, 1]
-        weights_of_weights = [random.uniform(0, 1) for j in range(len(local_model_weight_list))]
+        weights_of_weights = [rng_seed.random() for _ in range(len(local_model_weight_list))]
         # Normalize the weights to have a sum of 1
         weights_of_weights_sum = sum(weights_of_weights)
         weights_of_weights = [w_of_w / weights_of_weights_sum for w_of_w in weights_of_weights]
@@ -240,7 +268,10 @@ def average_weights_with_semi_random_search(
     # Iterate through all possible combinations of weights for the local models
     for i in range(semi_random_search_range):
         # Generate random weights for each local model in the range [0, best_weights_of_weights[j]]
-        weights_of_weights = [random.uniform(0, best_weights_of_weights[j]) for j in range(len(local_model_weight_list))]
+        weights_of_weights = [
+            max(min(rng_seed.random(), best_weights_of_weights[j]*2), best_weights_of_weights[j]/2)
+            for j in range(len(local_model_weight_list))
+        ]
         # Normalize the weights to have a sum of 1
         weights_of_weights_sum = sum(weights_of_weights)
         weights_of_weights = [w_of_w / weights_of_weights_sum for w_of_w in weights_of_weights]
