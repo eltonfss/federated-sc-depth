@@ -1,4 +1,6 @@
 import copy
+from datetime import datetime
+
 import torch
 import os
 import json
@@ -34,6 +36,16 @@ def backup_and_restore_federated_training_state(save_directory_path, federated_t
 
 def backup_federated_training_state(save_directory_path, federated_training_state):
     save_dict_or_list_as_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME, federated_training_state)
+    snapshots_path = os.path.join(save_directory_path, "snapshots")
+    previous_snapshots_filenames = os.listdir(snapshots_path) if os.path.exists(snapshots_path) else []
+    previous_snapshot_filename = None
+    if len(previous_snapshots_filenames) >= 3:
+        previous_snapshots_filenames.sort()
+        previous_snapshot_filename = previous_snapshots_filenames[0]
+    snapshot_filename = f"{FEDERATED_TRAINING_STATE_FILENAME}_{datetime.now().strftime('%d_%m_%Y_%H:%M:%S')}"
+    save_dict_or_list_as_json(snapshots_path, snapshot_filename, federated_training_state)
+    if previous_snapshot_filename:
+        os.remove(os.path.join(snapshots_path, previous_snapshot_filename))
 
 
 def restore_federated_training_state(save_directory_path):
