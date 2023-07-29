@@ -18,3 +18,4 @@ timm
 plotly==5.14.0
 pynvml==11.5.0
 kaleido==0.2.1
+scikit-optimize

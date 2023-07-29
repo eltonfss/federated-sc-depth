@@ -17,8 +17,8 @@ from datetime import datetime
 from pytorch_lightning import Trainer
 
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
-    average_weights_by_num_samples, average_weights_with_grid_search, average_weights_with_random_search, \
-    average_weights_with_semi_random_search, load_weights_without_batchnorm, load_weights, \
+    average_weights_by_num_samples, average_weights_optimization_by_search, \
+    load_weights_without_batchnorm, load_weights, \
     compute_iid_sample_partitions, mkdir_if_missing
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
@@ -87,6 +87,7 @@ if __name__ == "__main__":
 
     # set seed
     set_seed(config_args.seed)
+    random_seed = config_args.seed
 
     # persist federated training state (Federation Checkpoint)
     backup_federated_training_state(model_save_dir, federated_training_state)
@@ -570,23 +571,15 @@ if __name__ == "__main__":
                     print(f"Computing Global Update ...")
                     weights_of_weights = None
                     standard_fed_avg = True
-                    if fed_train_average_search_strategy == "GridSearch":
-                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_grid_search(
-                            ordered_local_weights, ordered_num_train_samples,
-                            global_model, global_data, global_trainer_config,
-                            fed_train_average_search_range
-                        )
-                    elif fed_train_average_search_strategy == "RandomSearch":
-                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_random_search(
-                            ordered_local_weights, ordered_num_train_samples,
-                            global_model, global_data, global_trainer_config,
-                            fed_train_average_search_range
-                        )
-                    elif fed_train_average_search_strategy == "SemiRandomSearch":
-                        global_weights, weights_of_weights, standard_fed_avg = average_weights_with_semi_random_search(
-                            ordered_local_weights, ordered_num_train_samples,
-                            global_model, global_data, global_trainer_config,
-                            fed_train_average_search_range
+                    if fed_train_average_search_strategy != "":
+                        global_weights, weights_of_weights, standard_fed_avg = average_weights_optimization_by_search(
+                            local_model_weight_list=ordered_local_weights,
+                            num_samples_for_each_local_model=ordered_num_train_samples,
+                            global_model=global_model, global_data=global_data,
+                            global_trainer_config=global_trainer_config,
+                            search_range_size=fed_train_average_search_range,
+                            search_strategy=fed_train_average_search_strategy,
+                            random_seed=random_seed
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(

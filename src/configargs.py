@@ -64,7 +64,7 @@ def get_configargs():
     parser.add_argument("--fed_train_by_drive_redistribute_remaining", type=int, default=0, help="Redistribute remaining samples if number of participants is lower than number of drives")
     parser.add_argument("--fed_train_x_noniid", action="store_true", help="Use non i.i.d x distribution between federated participants")
     parser.add_argument("--fed_train_average_without_bn", action="store_true", help="do not load the weights for the batchnorm layers")
-    parser.add_argument("--fed_train_average_search_strategy", type=str, default="", help="GridSearch,RandomSearch,SemiRandomSearch,BayesianSearch")
+    parser.add_argument("--fed_train_average_search_strategy", type=str, default="", help="GridSearch,RandomSearch,SemiRandomSearch,BayesianOptimization")
     parser.add_argument("--fed_train_average_search_range", type=int, default=1, help="Optimization Search Range")
     parser.add_argument("--fed_train_skip_bad_rounds", type=int, default=0, help="Ignore Global Model Update if Updated Global Model has higher loss than the one obtained in the previous round")
     parser.add_argument("--fed_train_participant_order", type=str, help="Indicate if participants should be ordered randomnly or sequentially during federated training", default="random")
