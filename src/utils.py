@@ -115,7 +115,10 @@ def compute_grid_range_size(local_model_weight_list, grid_length):
     weights_of_weights = [i / grid_length for i in range(grid_length + 1)]
     # Count the combinations where the sum of elements is 1
     weights_of_weights_grid = itertools.product(weights_of_weights, repeat=len(local_model_weight_list))
-    grid_range_size = sum(1 for w_of_w in weights_of_weights_grid if sum(w_of_w) == 1 and sum(w_of_w) > 0)
+    grid_range_size = 0
+    for w_of_w in weights_of_weights_grid:
+        if sum(w_of_w) > 0 and sum(normalize_weights_of_weights(w_of_w)) == 1:
+            grid_range_size += 1
     return grid_range_size
 
 
@@ -195,7 +198,6 @@ def average_weights_optimization_by_search(
             weights_of_weights_list = [weights_of_weights]
     if search_strategy == "GridSearch":
         # Define the range of weights to try for each local model
-        # TODO test this
         grid_length = compute_optimal_grid_length(search_range_size, local_model_weight_list)
         weight_of_weights_range = [i / grid_length for i in range(grid_length + 1)]
         weight_of_weights_range.reverse()
