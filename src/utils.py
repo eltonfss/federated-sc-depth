@@ -12,6 +12,8 @@ from PIL import Image
 import itertools
 from skopt import gp_minimize
 from pytorch_lightning import Trainer
+from rl_env import RLWeightOptimizationEnv
+from stable_baselines3 import PPO
 
 FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
 
@@ -148,11 +150,14 @@ def average_weights_optimization_by_search(
         search_strategy, random_seed
 ):
     """
-    search_strategy: 'GridSearch', 'RandomSearch', 'BayesianOptimization',
-    'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization', 'ReinforcementLearning'
+    search_strategy: 'GridSearch', 'RandomSearch', 'BayesianOptimization', 'ReinforcementLearning',
+    'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization', 'ConstrainedReinforcementLearning'
     """
-    valid_search_strategies = ['GridSearch', 'RandomSearch', 'BayesianOptimization',
-                               'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization', 'ReinforcementLearning']
+
+    # validate input parameters
+    valid_search_strategies = ['GridSearch', 'RandomSearch', 'BayesianOptimization', 'ReinforcementLearning',
+                               'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization',
+                               'ConstrainedReinforcementLearning']
     assert search_strategy in valid_search_strategies, \
         f"Invalid search_strategy. Supported types: {valid_search_strategies}"
     assert len(local_model_weight_list) == len(num_samples_for_each_local_model), \
@@ -168,49 +173,14 @@ def average_weights_optimization_by_search(
     print("Test Loss with standard FedAvg is:", best_test_loss)
     print(f"Optimizing Averaging Weights with {search_strategy} Range: {search_range_size}")
 
-    # compute weight combinations based on search strategy
-    weights_of_weights_list = []
-    rng_seed = np.random.default_rng(random_seed)
-    if search_strategy == "BayesianOptimization":
-        # Set bounds for the weights of weights (values between 0 and 1)
-        w_of_w_bounds = [(0.0, 1.0) for _ in range(len(local_model_weight_list))]
-        weights_of_weights_list = compute_weights_of_weights_list_with_bayesian_optimization(
-            best_test_loss, best_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-            global_data, global_model, global_trainer_config, w_of_w_bounds
-        )
-    elif search_strategy == "ConstrainedBayesianOptimization":
-        # Set bounds for the weights of weights (values between half of the ones with standard FedAvg and double)
-        w_of_w_bounds = [
-            (best_weights_of_weights[j]/2, best_weights_of_weights[j]*2) for j in range(len(local_model_weight_list))
-        ]
-        weights_of_weights_list = compute_weights_of_weights_list_with_bayesian_optimization(
-            best_test_loss, best_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-            global_data, global_model, global_trainer_config, w_of_w_bounds
-        )
-    elif search_strategy == "GridSearch":
-        # Define grid that generates the closest number of combinations to the desired range
-        weights_of_weights_list = compute_weights_of_weights_list_with_grid_search(
-            local_model_weight_list, search_range_size
-        )
-    elif search_strategy == "RandomSearch":
-        # Generate random weights for each local model in the range [0, 1]
-        weights_of_weights_list = compute_weights_of_weights_list_with_random_search(
-            local_model_weight_list, rng_seed, search_range_size,
-            lambda model_weight_list, seed: [seed.random() for _ in range(len(model_weight_list))]
-        )
-    elif search_strategy == "ConstrainedRandomSearch":
-        # Generate partially random weights for each local model in the range
-        # Each weight has to be at least half of the ones with standard FedAvg and double at max
-        weights_of_weights_list = compute_weights_of_weights_list_with_random_search(
-            local_model_weight_list, rng_seed, search_range_size,
-            lambda model_weight_list, seed: [
-                max(min(seed.random(), best_weights_of_weights[j] * 2), best_weights_of_weights[j] / 2)
-                for j in range(len(model_weight_list))
-            ]
-        )
+    # compute weight of weight combinations based on search strategy
+    w_of_w_combinations = compute_weight_of_weight_combinations(
+        best_test_loss, best_weights_of_weights, global_data, global_model, global_trainer_config,
+        local_model_weight_list, random_seed, search_range_size, search_strategy
+    )
 
     # Iterate through the precomputed combinations of weights for the local models
-    for weights_of_weights in weights_of_weights_list:
+    for weights_of_weights in w_of_w_combinations:
         avg_weights = average_weights_with_weights_of_weights(local_model_weight_list, weights_of_weights)
         print("Evaluating global model loss with Averaging Weights:", weights_of_weights)
         test_epoch_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config)
@@ -220,15 +190,107 @@ def average_weights_optimization_by_search(
             best_weights_of_weights = weights_of_weights
             best_weights = avg_weights
             standard_fed_avg = False
+
+    # retrieve best averaging weight, loss and if its standard fed avg
     print("Best Averaging Weights is:", best_weights_of_weights)
     print("Best Loss is:", best_test_loss)
-
     if standard_fed_avg:
         print("Optimal averaging weights were obtained with Standard FedAvg!")
     else:
         print(f"Optimal averaging weights were obtained with {search_strategy}!")
-
     return best_weights, best_weights_of_weights, standard_fed_avg
+
+
+def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,
+                                          global_trainer_config, local_model_weight_list, random_seed,
+                                          search_range_size, search_strategy):
+    w_of_w_combinations = []
+    rng_seed = np.random.default_rng(random_seed)
+    common_args = dict(
+        baseline_test_loss=best_test_loss,
+        baseline_weights_of_weights=best_weights_of_weights,
+        local_model_weight_list=local_model_weight_list,
+        random_seed=random_seed,
+        search_range_size=search_range_size,
+        global_data=global_data,
+        global_model=global_model,
+        global_trainer_config=global_trainer_config
+    )
+    common_args_unconstrained = dict(
+        w_of_w_bounds=compute_unconstrained_w_of_w_bounds(local_model_weight_list),
+        **common_args
+    )
+    common_args_constrained = dict(
+        w_of_w_bounds=compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list),
+        **common_args
+    )
+    if search_strategy == "ReinforcementLearning":
+        w_of_w_combinations = compute_weights_of_weights_list_with_reinforcement_learning(**common_args_unconstrained)
+    elif search_strategy == "ConstrainedReinforcementLearning":
+        w_of_w_combinations = compute_weights_of_weights_list_with_reinforcement_learning(**common_args_constrained)
+    elif search_strategy == "BayesianOptimization":
+        w_of_w_combinations = compute_weights_of_weights_list_with_bayesian_optimization(**common_args_unconstrained)
+    elif search_strategy == "ConstrainedBayesianOptimization":
+        w_of_w_combinations = compute_weights_of_weights_list_with_bayesian_optimization(**common_args_constrained)
+    elif search_strategy == "GridSearch":
+        # Define grid that generates the closest number of combinations to the desired range
+        w_of_w_combinations = compute_weights_of_weights_list_with_grid_search(
+            local_model_weight_list, search_range_size
+        )
+    elif search_strategy == "RandomSearch":
+        # Generate random weights for each local model in the range [0, 1]
+        w_of_w_combinations = compute_weights_of_weights_list_with_random_search(
+            local_model_weight_list, rng_seed, search_range_size,
+            lambda model_weight_list, seed: [seed.random() for _ in range(len(model_weight_list))]
+        )
+    elif search_strategy == "ConstrainedRandomSearch":
+        # Generate partially random weights for each local model in the range
+        # Each weight has to be at least half of the ones with standard FedAvg and double at max
+        w_of_w_combinations = compute_weights_of_weights_list_with_random_search(
+            local_model_weight_list, rng_seed, search_range_size,
+            lambda model_weight_list, seed: [
+                max(min(seed.random(), best_weights_of_weights[j] * 2), best_weights_of_weights[j] / 2)
+                for j in range(len(model_weight_list))
+            ]
+        )
+    return w_of_w_combinations
+
+
+def compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list):
+    # Set bounds for the weights of weights (values between half of the ones with standard FedAvg and double)
+    w_of_w_bounds = [
+        (best_weights_of_weights[j] / 2, best_weights_of_weights[j] * 2) for j in
+        range(len(local_model_weight_list))
+    ]
+    return w_of_w_bounds
+
+
+def compute_unconstrained_w_of_w_bounds(local_model_weight_list):
+    # Set bounds for the weights of weights (values between 0 and 1)
+    w_of_w_bounds = np.array([(0.0, 1.0) for _ in range(len(local_model_weight_list))])
+    return w_of_w_bounds
+
+
+def compute_weights_of_weights_list_with_reinforcement_learning(
+        baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
+        global_data, global_model, global_trainer_config, w_of_w_bounds
+):
+
+    # Define the RL environment for the optimization problem
+    rl_env = RLWeightOptimizationEnv(
+        w_of_w_bounds=w_of_w_bounds, local_model_weight_list=local_model_weight_list, random_seed=random_seed,
+        baseline_weights_of_weights=baseline_weights_of_weights, baseline_loss=baseline_test_loss,
+        avg_func=lambda w, w_of_w: average_weights_with_weights_of_weights(w, normalize_weights_of_weights(w_of_w)),
+        eval_func=lambda avg_w: evaluate_averaged_weights(avg_w, global_data, global_model, global_trainer_config)
+    )
+    # Define the RL agent policy and the policy network architecture
+    policy_kwargs = dict(net_arch=[len(local_model_weight_list) * search_range_size])
+    model = PPO("MlpPolicy", rl_env, policy_kwargs=policy_kwargs, verbose=1, n_steps=search_range_size)
+    # Train the RL agent
+    model.learn(total_timesteps=search_range_size, progress_bar=True)
+    # Get the best action (weights of weights) from the learned policy
+    best_action, _ = model.predict(np.array(baseline_weights_of_weights))
+    return [normalize_weights_of_weights(best_action.tolist())]
 
 
 def compute_weights_of_weights_list_with_random_search(

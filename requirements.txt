@@ -18,4 +18,9 @@ timm
 plotly==5.14.0
 pynvml==11.5.0
 kaleido==0.2.1
-scikit-optimize
+# bayesian optimization
+scikit-optimize==0.9.0
+# reinforcement learning
+gym==0.26.2
+stable-baselines3[extra]==2.0.0
+Shimmy==0.2.1
