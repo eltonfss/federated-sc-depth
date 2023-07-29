@@ -260,7 +260,7 @@ def compute_weights_of_weights_list_with_grid_search(local_model_weight_list, se
 
 
 def compute_weights_of_weights_list_with_bayesian_optimization(
-        best_test_loss, best_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
+        baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
         global_data, global_model, global_trainer_config, w_of_w_bounds
 ):
     weights_of_weights_list = []
@@ -280,8 +280,8 @@ def compute_weights_of_weights_list_with_bayesian_optimization(
         evaluate_weights_of_weights_for_bayesian_optimization,
         dimensions=w_of_w_bounds,
         n_calls=search_range_size if search_range_size >= 5 else 5,
-        x0=[best_weights_of_weights],  # initialize with standardFedAvg weights
-        y0=[best_test_loss],  # initialize with standardFedAvg loss
+        x0=[baseline_weights_of_weights],  # initialize with standardFedAvg weights
+        y0=[baseline_test_loss],  # initialize with standardFedAvg loss
         n_initial_points=5,
         verbose=True,
         random_state=random_seed,
@@ -289,7 +289,7 @@ def compute_weights_of_weights_list_with_bayesian_optimization(
     )
     # Extract the best weights of weights from the result in order to compare with standard fed avg
     weights_of_weights = normalize_weights_of_weights(result.x)
-    if best_weights_of_weights != weights_of_weights:
+    if baseline_weights_of_weights != weights_of_weights:
         weights_of_weights_list = [weights_of_weights]
     return weights_of_weights_list
 
