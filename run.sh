@@ -8,7 +8,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/kitti"
 #DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
 #RESTORE_DIR="$OUTPUT_DIR/24_07_2023_13:29:09" # IID
-#RESTORE_DIR="$OUTPUT_DIR/24_07_2023_23:44:13" # BY DRIVE
+RESTORE_DIR="$OUTPUT_DIR/29_07_2023_19:03:03" # BY DRIVE
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -34,18 +34,18 @@ FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
 #FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
 #FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
 
-# GRID SEARCH RANGE
-#FED_TRAIN_AVG_SEARCH_STRATEGY="GridSearch"
-#FED_TRAIN_AVG_SEARCH_RANGE=1
-#FED_TRAIN_AVG_SEARCH_RANGE=2
-#FED_TRAIN_AVG_SEARCH_RANGE=3
-#FED_TRAIN_AVG_SEARCH_RANGE=4
-#FED_TRAIN_AVG_SEARCH_RANGE=6
-
-# (SEMI-) RANDOM SEARCH RANGE
-#FED_TRAIN_AVG_SEARCH_STRATEGY="RandomSearch"
-FED_TRAIN_AVG_SEARCH_STRATEGY="SemiRandomSearch"
+#FED_TRAIN_AVG_SEARCH_RANGE=5
 FED_TRAIN_AVG_SEARCH_RANGE=10
+#FED_TRAIN_AVG_SEARCH_RANGE=30
+
+#FED_TRAIN_AVG_SEARCH_STRATEGY="" # StandardFedAvg
+#FED_TRAIN_AVG_SEARCH_STRATEGY="ReinforcementLearning"
+#FED_TRAIN_AVG_SEARCH_STRATEGY="ConstrainedReinforcementLearning"
+FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization"
+#FED_TRAIN_AVG_SEARCH_STRATEGY="ConstrainedBayesianOptimization"
+#FED_TRAIN_AVG_SEARCH_STRATEGY="RandomSearch"
+#FED_TRAIN_AVG_SEARCH_STRATEGY="ConstrainedRandomSearch"
+#FED_TRAIN_AVG_SEARCH_STRATEGY="GridSearch"
 
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
@@ -58,5 +58,5 @@ python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_n
 --fed_train_skip_bad_rounds=$FED_TRAIN_SKIP_BAD_ROUNDS \
 --fed_train_average_search_strategy=$FED_TRAIN_AVG_SEARCH_STRATEGY \
 --fed_train_average_search_range=$FED_TRAIN_AVG_SEARCH_RANGE \
-#--fed_train_state_restore_dir=$RESTORE_DIR
+--fed_train_state_restore_dir=$RESTORE_DIR
 
