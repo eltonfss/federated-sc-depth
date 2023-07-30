@@ -16,7 +16,7 @@ from rl_env import RLWeightOptimizationEnv
 from stable_baselines3 import PPO
 
 FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
-
+PROXY_FOR_INFINITY = 10**6
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -256,12 +256,16 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
     return w_of_w_combinations
 
 
-def compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list):
+def compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list,
+                                      freedom_ratio=PROXY_FOR_INFINITY):
     # Set bounds for the weights of weights (values between half of the ones with standard FedAvg and double)
-    w_of_w_bounds = [
-        (best_weights_of_weights[j] / 2, best_weights_of_weights[j] * 2) for j in
+    w_of_w_bounds = np.array([
+        (
+            best_weights_of_weights[j] / freedom_ratio,
+            min(best_weights_of_weights[j] * freedom_ratio, 1)  # maximum of 1
+        ) for j in
         range(len(local_model_weight_list))
-    ]
+    ])
     return w_of_w_bounds
 
 
@@ -280,7 +284,8 @@ def compute_weights_of_weights_list_with_reinforcement_learning(
     rl_env = RLWeightOptimizationEnv(
         w_of_w_bounds=w_of_w_bounds, local_model_weight_list=local_model_weight_list, random_seed=random_seed,
         baseline_weights_of_weights=baseline_weights_of_weights, baseline_loss=baseline_test_loss,
-        avg_func=lambda w, w_of_w: average_weights_with_weights_of_weights(w, normalize_weights_of_weights(w_of_w)),
+        norm_func=normalize_weights_of_weights,
+        avg_func=lambda w, w_of_w: average_weights_with_weights_of_weights(w, w_of_w),
         eval_func=lambda avg_w: evaluate_averaged_weights(avg_w, global_data, global_model, global_trainer_config)
     )
     # Define the RL agent policy and the policy network architecture
@@ -329,14 +334,13 @@ def compute_weights_of_weights_list_with_bayesian_optimization(
 
     # Perform Bayesian optimization using gp_minimize
     def evaluate_weights_of_weights_for_bayesian_optimization(w_of_w):
-        proxy_for_infinite_loss = 100000
         try:
             w_of_w = normalize_weights_of_weights(w_of_w)
             avg_weights_bo = average_weights_with_weights_of_weights(local_model_weight_list, w_of_w)
             test_loss = evaluate_averaged_weights(avg_weights_bo, global_data, global_model, global_trainer_config)
         except:
-            test_loss = proxy_for_infinite_loss
-        return test_loss if test_loss is not None else proxy_for_infinite_loss
+            test_loss = PROXY_FOR_INFINITY
+        return test_loss if test_loss is not None else PROXY_FOR_INFINITY
 
     result = gp_minimize(
         evaluate_weights_of_weights_for_bayesian_optimization,
