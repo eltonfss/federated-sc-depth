@@ -1,5 +1,6 @@
 import copy
 from datetime import datetime
+from sgd_regressor import OptimizedSGDRegressor
 
 import torch
 import os
@@ -16,7 +17,8 @@ from rl_env import RLWeightOptimizationEnv
 from stable_baselines3 import PPO
 
 FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
-PROXY_FOR_INFINITY = 10**6
+PROXY_FOR_INFINITY = 10 ** 6
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -112,7 +114,7 @@ def average_weights_by_num_samples(w, num_samples):
     return avg_weights, sample_weights
 
 
-def compute_grid_range_size(local_model_weight_list, grid_length):
+def compute_grid_range_size(local_model_weight_list, grid_length=100):
     if grid_length <= 0:
         return 0
     # Generate the list of values for y
@@ -150,14 +152,19 @@ def average_weights_optimization_by_search(
         search_strategy, random_seed
 ):
     """
-    search_strategy: 'GridSearch', 'RandomSearch', 'BayesianOptimization', 'ReinforcementLearning',
-    'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization', 'ConstrainedReinforcementLearning'
+    search_strategy:   'GridSearch',
+                       'RandomSearch', 'ConstrainedRandomSearch',
+                       'BayesianRegressionGrid', 'ConstrainedBayesianRegressionGrid',
+                       'BayesianOptimization', 'ConstrainedBayesianOptimization',
+                       'ReinforcementLearning', 'ConstrainedReinforcementLearning'
     """
 
     # validate input parameters
-    valid_search_strategies = ['GridSearch', 'RandomSearch', 'BayesianOptimization', 'ReinforcementLearning',
-                               'ConstrainedRandomSearch', 'ConstrainedBayesianOptimization',
-                               'ConstrainedReinforcementLearning']
+    valid_search_strategies = ['GridSearch',
+                               'RandomSearch', 'ConstrainedRandomSearch',
+                               'BayesianRegressionGrid', 'BayesianRegressionGrid',
+                               'BayesianOptimization', 'ConstrainedBayesianOptimization',
+                               'ReinforcementLearning', 'ConstrainedReinforcementLearning']
     assert search_strategy in valid_search_strategies, \
         f"Invalid search_strategy. Supported types: {valid_search_strategies}"
     assert len(local_model_weight_list) == len(num_samples_for_each_local_model), \
@@ -204,7 +211,7 @@ def average_weights_optimization_by_search(
 def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,
                                           global_trainer_config, local_model_weight_list, random_seed,
                                           search_range_size, search_strategy):
-    w_of_w_combinations = []
+    w_of_w_combos = []
     rng_seed = np.random.default_rng(random_seed)
     common_args = dict(
         baseline_test_loss=best_test_loss,
@@ -224,36 +231,90 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
         w_of_w_bounds=compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list),
         **common_args
     )
-    if search_strategy == "ReinforcementLearning":
-        w_of_w_combinations = compute_weights_of_weights_list_with_reinforcement_learning(**common_args_unconstrained)
+    if search_strategy == "BayesianRegressionGrid":
+        w_of_w_combos = compute_w_of_w_combinations_with_bayesian_regression_grid(**common_args_unconstrained)
+    elif search_strategy == "ConstrainedBayesianRegressionGrid":
+        w_of_w_combos = compute_w_of_w_combinations_with_bayesian_regression_grid(**common_args_constrained)
+    elif search_strategy == "ReinforcementLearning":
+        w_of_w_combos = compute_w_of_w_combinations_with_reinforcement_learning(**common_args_unconstrained)
     elif search_strategy == "ConstrainedReinforcementLearning":
-        w_of_w_combinations = compute_weights_of_weights_list_with_reinforcement_learning(**common_args_constrained)
+        w_of_w_combos = compute_w_of_w_combinations_with_reinforcement_learning(**common_args_constrained)
     elif search_strategy == "BayesianOptimization":
-        w_of_w_combinations = compute_weights_of_weights_list_with_bayesian_optimization(**common_args_unconstrained)
+        w_of_w_combos, _, _, _ = compute_w_of_w_combinations_with_bayesian_optimization(**common_args_unconstrained)
     elif search_strategy == "ConstrainedBayesianOptimization":
-        w_of_w_combinations = compute_weights_of_weights_list_with_bayesian_optimization(**common_args_constrained)
+        w_of_w_combos, _, _, _ = compute_w_of_w_combinations_with_bayesian_optimization(**common_args_constrained)
     elif search_strategy == "GridSearch":
         # Define grid that generates the closest number of combinations to the desired range
-        w_of_w_combinations = compute_weights_of_weights_list_with_grid_search(
-            local_model_weight_list, search_range_size
-        )
+        w_of_w_combos = compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search_range_size)
     elif search_strategy == "RandomSearch":
         # Generate random weights for each local model in the range [0, 1]
-        w_of_w_combinations = compute_weights_of_weights_list_with_random_search(
+        w_of_w_combos = compute_w_of_w_combinations_with_random_search(
             local_model_weight_list, rng_seed, search_range_size,
             lambda model_weight_list, seed: [seed.random() for _ in range(len(model_weight_list))]
         )
     elif search_strategy == "ConstrainedRandomSearch":
         # Generate partially random weights for each local model in the range
         # Each weight has to be at least half of the ones with standard FedAvg and double at max
-        w_of_w_combinations = compute_weights_of_weights_list_with_random_search(
+        w_of_w_combos = compute_w_of_w_combinations_with_random_search(
             local_model_weight_list, rng_seed, search_range_size,
             lambda model_weight_list, seed: [
                 max(min(seed.random(), best_weights_of_weights[j] * 2), best_weights_of_weights[j] / 2)
                 for j in range(len(model_weight_list))
             ]
         )
-    return w_of_w_combinations
+    return w_of_w_combos
+
+
+def compute_w_of_w_combinations_with_bayesian_regression_grid(
+        baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
+        global_data, global_model, global_trainer_config, w_of_w_bounds
+):
+    print("Running Bayesian Optimization")
+    best_w_of_w_combos, best_losses, w_of_w_combos, losses = compute_w_of_w_combinations_with_bayesian_optimization(
+        baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
+        global_data, global_model, global_trainer_config, w_of_w_bounds
+    )
+
+    print("Fitting Regression Model and Estimating Optimal Weights with Grid Search")
+    best_w_of_w_combination, best_loss = compute_best_w_of_w_combination_with_regression_model_and_grid_search(
+        global_data, global_model, global_trainer_config, local_model_weight_list, losses, w_of_w_combos
+    )
+
+    if len(best_losses) > 0 and any(best_loss >= best_loss_bayes_opt for best_loss_bayes_opt in best_losses):
+        print("Test Loss of Weights found only with Bayesian Optimization are good enough!")
+        w_of_w_combinations = best_w_of_w_combos
+    else:
+        print("Test Loss of Weights found with Bayesian Optimization + Regression Model + Grid Search are better!")
+        w_of_w_combinations = [best_w_of_w_combination]
+
+    return list(w_of_w_combinations)
+
+
+def compute_best_w_of_w_combination_with_regression_model_and_grid_search(global_data, global_model,
+                                                                          global_trainer_config,
+                                                                          local_model_weight_list, losses,
+                                                                          w_of_w_combos):
+    # clean invalid losses/combos
+    while PROXY_FOR_INFINITY in losses:
+        invalid_loss_index = losses.index(PROXY_FOR_INFINITY)
+        w_of_w_combos.pop(invalid_loss_index)
+        losses.pop(invalid_loss_index)
+
+    print("Performing Optimized Grid Search using Regression Model")
+    grid_range_size = compute_grid_range_size(local_model_weight_list)
+    grid_w_of_w_combos = compute_w_of_w_combinations_with_grid_search(local_model_weight_list, grid_range_size)
+    regression_model = OptimizedSGDRegressor()
+    regression_model.fit(np.array(w_of_w_combos), np.array(losses))
+    grid_test_losses = list(regression_model.predict(np.array(grid_w_of_w_combos)))
+    best_grid_test_loss = min(grid_test_losses)
+    print("Best Regression Model: ", regression_model.get_best_configuration())
+    best_w_of_w = normalize_weights_of_weights(grid_w_of_w_combos[grid_test_losses.index(best_grid_test_loss)])
+    print("Best Averaging Weights Found By Regression Model: ", best_w_of_w)
+    print("Estimated Test Loss:", best_grid_test_loss)
+    print("Computing Actual Test Loss...")
+    avg_weights = average_weights_with_weights_of_weights(local_model_weight_list, best_w_of_w)
+    test_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config)
+    return best_w_of_w, test_loss
 
 
 def compute_constrained_w_of_w_bounds(best_weights_of_weights, local_model_weight_list,
@@ -275,11 +336,10 @@ def compute_unconstrained_w_of_w_bounds(local_model_weight_list):
     return w_of_w_bounds
 
 
-def compute_weights_of_weights_list_with_reinforcement_learning(
+def compute_w_of_w_combinations_with_reinforcement_learning(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
         global_data, global_model, global_trainer_config, w_of_w_bounds
 ):
-
     # Define the RL environment for the optimization problem
     rl_env = RLWeightOptimizationEnv(
         w_of_w_bounds=w_of_w_bounds, local_model_weight_list=local_model_weight_list, random_seed=random_seed,
@@ -298,39 +358,40 @@ def compute_weights_of_weights_list_with_reinforcement_learning(
     return [normalize_weights_of_weights(best_action.tolist())]
 
 
-def compute_weights_of_weights_list_with_random_search(
+def compute_w_of_w_combinations_with_random_search(
         local_model_weight_list, rng_seed, search_range_size,
         weights_of_weights_sampling_function
 ):
-    weights_of_weights_list = []
+    w_of_w_combinations = []
     for i in range(search_range_size):
         # Generate random weights for each local model in the range [0, 1]
         weights_of_weights = []
         while sum(weights_of_weights) == 0:
             weights_of_weights = weights_of_weights_sampling_function(local_model_weight_list, rng_seed)
-        weights_of_weights_list.append(normalize_weights_of_weights(weights_of_weights))
-    return weights_of_weights_list
+        w_of_w_combinations.append(normalize_weights_of_weights(weights_of_weights))
+    return w_of_w_combinations
 
 
-def compute_weights_of_weights_list_with_grid_search(local_model_weight_list, search_range_size):
+def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search_range_size):
     # Define the range of weights to try for each local model
     grid_length = compute_optimal_grid_length(search_range_size, local_model_weight_list)
     weight_of_weights_range = [i / grid_length for i in range(grid_length + 1)]
     weight_of_weights_range.reverse()
-    weights_of_weights_list = list(itertools.product(weight_of_weights_range, repeat=len(local_model_weight_list)))
+    w_of_w_combinations = list(itertools.product(weight_of_weights_range, repeat=len(local_model_weight_list)))
     weights_of_weights_list_pruned = []
-    for weights_of_weights in weights_of_weights_list:
+    for weights_of_weights in w_of_w_combinations:
         if sum(weights_of_weights) > 0:
             weights_of_weights_list_pruned.append(normalize_weights_of_weights(weights_of_weights))
-    weights_of_weights_list = weights_of_weights_list_pruned
-    return weights_of_weights_list
+    w_of_w_combinations = weights_of_weights_list_pruned
+    return w_of_w_combinations
 
 
-def compute_weights_of_weights_list_with_bayesian_optimization(
+def compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
         global_data, global_model, global_trainer_config, w_of_w_bounds
 ):
-    weights_of_weights_list = []
+    best_w_of_w_combinations = []
+    best_test_losses = []
 
     # Perform Bayesian optimization using gp_minimize
     def evaluate_weights_of_weights_for_bayesian_optimization(w_of_w):
@@ -353,11 +414,14 @@ def compute_weights_of_weights_list_with_bayesian_optimization(
         random_state=random_seed,
         n_jobs=1
     )
+    weights_of_weights_samples = result.x_iters
+    test_loss_samples = list(result.func_vals)
     # Extract the best weights of weights from the result in order to compare with standard fed avg
     weights_of_weights = normalize_weights_of_weights(result.x)
     if baseline_weights_of_weights != weights_of_weights:
-        weights_of_weights_list = [weights_of_weights]
-    return weights_of_weights_list
+        best_w_of_w_combinations = [weights_of_weights]
+        best_test_losses = [result.fun]
+    return best_w_of_w_combinations, best_test_losses, weights_of_weights_samples, test_loss_samples
 
 
 def average_weights_with_weights_of_weights(local_model_weight_list, weights_of_weights):
@@ -428,6 +492,7 @@ def load_weights(model, w):
     """
     model.load_state_dict({k: v for k, v in w.items()}, strict=False)
     return model
+
 
 def visualize_image(image):
     """
