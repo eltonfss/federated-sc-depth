@@ -47,6 +47,6 @@ class RLWeightOptimizationEnv(gym.Env):
         else:
             test_loss_rl = 1
         reward = 1 - test_loss_rl
-        print(f"Loss = {test_loss_rl} Reward = {reward}")
+        print(f"Loss = {test_loss_rl} - Reward = {reward}")
         # Return the new state (action) and the negative test loss as the reward
         return np.array(weights_of_weights), reward, False, {}
