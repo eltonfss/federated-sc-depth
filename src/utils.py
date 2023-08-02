@@ -403,16 +403,18 @@ def compute_w_of_w_combinations_with_bayesian_optimization(
             test_loss = PROXY_FOR_INFINITY
         return test_loss if test_loss is not None else PROXY_FOR_INFINITY
 
+    n_initial_random_points = int(len(w_of_w_bounds) * search_range_size)
+    n_optimization_iterations = max(n_initial_random_points*2, 5)
     result = gp_minimize(
         evaluate_weights_of_weights_for_bayesian_optimization,
         dimensions=w_of_w_bounds,
-        n_calls=search_range_size if search_range_size >= 5 else 5,
+        n_calls=n_optimization_iterations,
         x0=[baseline_weights_of_weights],  # initialize with standardFedAvg weights
         y0=[baseline_test_loss],  # initialize with standardFedAvg loss
-        n_initial_points=5,
+        n_initial_points=n_initial_random_points,
         verbose=True,
         random_state=random_seed,
-        n_jobs=1
+        n_jobs=-1
     )
     weights_of_weights_samples = result.x_iters
     test_loss_samples = list(result.func_vals)
