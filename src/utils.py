@@ -149,7 +149,7 @@ def average_weights_optimization_by_search(
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
         global_trainer_config, search_range_size,
-        search_strategy, random_seed
+        search_strategy, random_seed, aggregation_optimization_info
 ):
     """
     search_strategy:   'GridSearch',
@@ -175,7 +175,9 @@ def average_weights_optimization_by_search(
         local_model_weight_list, num_samples_for_each_local_model
     )
     best_test_loss = evaluate_averaged_weights(best_weights, global_data, global_model, global_trainer_config)
-    standard_fed_avg = True
+    standard_fed_avg_is_best = True
+    aggregation_optimization_info['standard_fed_avg_weights_of_weights'] = best_weights_of_weights
+    aggregation_optimization_info['standard_fed_avg_loss'] = best_test_loss
     print("Weights of weights with standard FedAvg is:", best_weights_of_weights)
     print("Test Loss with standard FedAvg is:", best_test_loss)
     print(f"Optimizing Averaging Weights with {search_strategy} Range: {search_range_size}")
@@ -196,16 +198,19 @@ def average_weights_optimization_by_search(
             best_test_loss = test_epoch_loss
             best_weights_of_weights = weights_of_weights
             best_weights = avg_weights
-            standard_fed_avg = False
+            standard_fed_avg_is_best = False
 
     # retrieve best averaging weight, loss and if its standard fed avg
     print("Best Averaging Weights is:", best_weights_of_weights)
     print("Best Loss is:", best_test_loss)
-    if standard_fed_avg:
+    if standard_fed_avg_is_best:
         print("Optimal averaging weights were obtained with Standard FedAvg!")
     else:
         print(f"Optimal averaging weights were obtained with {search_strategy}!")
-    return best_weights, best_weights_of_weights, standard_fed_avg
+    aggregation_optimization_info['best_weights_of_weights'] = best_weights_of_weights
+    aggregation_optimization_info['best_loss'] = best_test_loss
+    aggregation_optimization_info['standard_fed_avg_is_best'] = standard_fed_avg_is_best
+    return best_weights, best_weights_of_weights, standard_fed_avg_is_best
 
 
 def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,

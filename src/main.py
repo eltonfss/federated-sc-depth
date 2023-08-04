@@ -293,8 +293,7 @@ if __name__ == "__main__":
             federated_training_state['local_model_dir_by_participant_by_round'] = {}
             federated_training_state['local_model_bytes_by_participant_by_round'] = {}
             federated_training_state['global_model_bytes_by_round'] = {}
-            federated_training_state['global_model_weights_of_weights_by_round'] = {}
-            federated_training_state['global_model_standard_fed_avg_by_round'] = {}
+            federated_training_state['aggregation_optimization_info_by_round'] = {}
             federated_training_state['global_model_dir_by_round'] = {}
             federated_training_state['num_participants_by_round'] = {}
             federated_training_state['participant_order_by_round'] = {}
@@ -308,8 +307,7 @@ if __name__ == "__main__":
         local_model_bytes_by_participant_by_round = federated_training_state[
             'local_model_bytes_by_participant_by_round']
         global_model_bytes_by_round = federated_training_state['global_model_bytes_by_round']
-        global_model_weights_of_weights_by_round = federated_training_state['global_model_weights_of_weights_by_round']
-        global_model_standard_fed_avg_by_round = federated_training_state['global_model_standard_fed_avg_by_round']
+        aggregation_optimization_info_by_round = federated_training_state['aggregation_optimization_info_by_round']
         global_model_dir_by_round = federated_training_state['global_model_dir_by_round']
         num_participants_by_round = federated_training_state['num_participants_by_round']
         participant_order_by_round = federated_training_state['participant_order_by_round']
@@ -392,7 +390,7 @@ if __name__ == "__main__":
 
             # persist federated training state (Federation Checkpoint)
             backup_federated_training_state(model_save_dir, federated_training_state)
-
+            aggregation_optimization_info = aggregation_optimization_info_by_round[training_round] = {}
             skip_local_updates = global_model_round is not None and int(global_model_round) >= int(training_round)
             if not skip_local_updates or skip_restore:
 
@@ -579,14 +577,14 @@ if __name__ == "__main__":
                             global_trainer_config=global_trainer_config,
                             search_range_size=fed_train_average_search_range,
                             search_strategy=fed_train_average_search_strategy,
-                            random_seed=random_seed
+                            random_seed=random_seed,
+                            aggregation_optimization_info=aggregation_optimization_info
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(
                             ordered_local_weights, ordered_num_train_samples
                         )
-                    global_model_weights_of_weights_by_round[training_round] = weights_of_weights
-                    global_model_standard_fed_avg_by_round[training_round] = standard_fed_avg
+                        aggregation_optimization_info['standard_fed_avg_weights_of_weights'] = weights_of_weights
                     previous_global_model = copy.deepcopy(global_model)
                     global_model.load_state_dict(global_weights)
                     print(f"Global Update Computed!")
@@ -607,7 +605,9 @@ if __name__ == "__main__":
                 raise KeyboardInterrupt("Global Update Interrupted!")
             test_epoch_losses = global_model.test_epoch_losses
             test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
+            aggregation_optimization_info['loss_after_aggregation'] = test_epoch_loss
             if int(training_round) > 0 and fed_train_skip_bad_rounds > 0:
+                aggregation_optimization_info['loss_worse_than_previous_round'] = False
                 previous_round = str(int(training_round) - 1)
                 previous_test_epoch_loss = float(global_test_loss_by_round[previous_round])
                 if previous_test_epoch_loss < test_epoch_loss and previous_global_model is not None:
@@ -617,6 +617,7 @@ if __name__ == "__main__":
                     test_epoch_loss = previous_test_epoch_loss
                     global_model = copy.deepcopy(previous_global_model)
                     global_weights = global_model.state_dict()
+                    aggregation_optimization_info['loss_worse_than_previous_round'] = True
 
             global_test_loss_by_round[training_round] = test_epoch_loss
             print(f"Global Test Loss in Round {training_round}: {test_epoch_loss}")
