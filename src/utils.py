@@ -354,7 +354,8 @@ def compute_w_of_w_combinations_with_reinforcement_learning(
         eval_func=lambda avg_w: evaluate_averaged_weights(avg_w, global_data, global_model, global_trainer_config)
     )
     # Define the RL agent policy and the policy network architecture
-    policy_kwargs = dict(net_arch=[len(local_model_weight_list) * search_range_size])
+    max_number_of_neurons = int(2**(len(local_model_weight_list)))
+    policy_kwargs = dict(net_arch=[max_number_of_neurons, int(max_number_of_neurons/2)])
     model = PPO("MlpPolicy", rl_env, policy_kwargs=policy_kwargs, verbose=1, n_steps=search_range_size)
     # Train the RL agent
     model.learn(total_timesteps=search_range_size, progress_bar=True)
