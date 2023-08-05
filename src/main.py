@@ -565,12 +565,15 @@ if __name__ == "__main__":
                 # update global weights
                 ordered_local_weights = list(local_weights_by_participant.values())
                 ordered_num_train_samples = list(num_train_samples_by_participant.values())
+                ordered_participant_ids = list(local_weights_by_participant.keys())
                 if len(ordered_local_weights) > 0:
                     print(f"Computing Global Update ...")
                     weights_of_weights = None
                     standard_fed_avg = True
                     if fed_train_average_search_strategy != "":
                         global_weights, weights_of_weights, standard_fed_avg = average_weights_optimization_by_search(
+                            model_save_dir=model_save_dir,
+                            local_model_ids=ordered_participant_ids,
                             local_model_weight_list=ordered_local_weights,
                             num_samples_for_each_local_model=ordered_num_train_samples,
                             global_model=global_model, global_data=global_data,

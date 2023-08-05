@@ -15,6 +15,7 @@ from skopt import gp_minimize
 from pytorch_lightning import Trainer
 from rl_env import RLWeightOptimizationEnv
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement, EvalCallback
 
 FEDERATED_TRAINING_STATE_FILENAME = "federated_training_state"
 PROXY_FOR_INFINITY = 10 ** 6
@@ -146,6 +147,8 @@ def compute_optimal_grid_length(desired_grid_range_size, local_model_weight_list
 
 
 def average_weights_optimization_by_search(
+        model_save_dir,
+        local_model_ids,
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
         global_trainer_config, search_range_size,
@@ -167,7 +170,7 @@ def average_weights_optimization_by_search(
                                'ReinforcementLearning', 'ConstrainedReinforcementLearning']
     assert search_strategy in valid_search_strategies, \
         f"Invalid search_strategy. Supported types: {valid_search_strategies}"
-    assert len(local_model_weight_list) == len(num_samples_for_each_local_model), \
+    assert len(local_model_weight_list) == len(num_samples_for_each_local_model) == len(local_model_ids), \
         'Each weight dict must have a corresponding number of samples and vice-versa!'
 
     # Initialize best weights and test loss with sample weighted averaging (standard FedAvg)
@@ -185,7 +188,7 @@ def average_weights_optimization_by_search(
     # compute weight of weight combinations based on search strategy
     w_of_w_combinations = compute_weight_of_weight_combinations(
         best_test_loss, best_weights_of_weights, global_data, global_model, global_trainer_config,
-        local_model_weight_list, random_seed, search_range_size, search_strategy
+        model_save_dir, local_model_ids, local_model_weight_list, random_seed, search_range_size, search_strategy
     )
 
     # Iterate through the precomputed combinations of weights for the local models
@@ -214,13 +217,16 @@ def average_weights_optimization_by_search(
 
 
 def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,
-                                          global_trainer_config, local_model_weight_list, random_seed,
+                                          global_trainer_config, model_save_dir, local_model_ids,
+                                          local_model_weight_list, random_seed,
                                           search_range_size, search_strategy):
     w_of_w_combos = []
     rng_seed = np.random.default_rng(random_seed)
     common_args = dict(
         baseline_test_loss=best_test_loss,
         baseline_weights_of_weights=best_weights_of_weights,
+        model_save_dir=model_save_dir,
+        local_model_ids=local_model_ids,
         local_model_weight_list=local_model_weight_list,
         random_seed=random_seed,
         search_range_size=search_range_size,
@@ -272,7 +278,7 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
 
 def compute_w_of_w_combinations_with_bayesian_regression_grid(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds
+        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
 ):
     print("Running Bayesian Optimization")
     best_w_of_w_combos, best_losses, w_of_w_combos, losses = compute_w_of_w_combinations_with_bayesian_optimization(
@@ -342,31 +348,88 @@ def compute_unconstrained_w_of_w_bounds(local_model_weight_list):
 
 
 def compute_w_of_w_combinations_with_reinforcement_learning(
-        baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
+        baseline_test_loss, baseline_weights_of_weights,
+        model_save_dir, local_model_ids,
+        local_model_weight_list, random_seed, search_range_size,
         global_data, global_model, global_trainer_config, w_of_w_bounds
 ):
+
+    # sort everything by id order to make reuse feasible
+    local_model_weight_by_id = {
+        str(local_model_ids[i]): local_model_weight_list[i] for i in range(len(local_model_ids))
+    }
+    sorted_local_model_ids = sorted([str(model_id) for model_id in local_model_ids])
+    sorted_local_model_weight_list = [local_model_weight_by_id[model_id] for model_id in sorted_local_model_ids]
+    baseline_weights_of_weights_by_model_id = {
+        str(local_model_ids[i]): baseline_weights_of_weights[i] for i in range(len(local_model_ids))
+    }
+    sorted_baseline_weights_of_weights = [
+        baseline_weights_of_weights_by_model_id[model_id] for model_id in sorted_local_model_ids
+    ]
+
     # Define the RL environment for the optimization problem
     rl_env = RLWeightOptimizationEnv(
-        w_of_w_bounds=w_of_w_bounds, local_model_weight_list=local_model_weight_list, random_seed=random_seed,
-        baseline_weights_of_weights=baseline_weights_of_weights, baseline_loss=baseline_test_loss,
+        w_of_w_bounds=w_of_w_bounds, local_model_weight_list=sorted_local_model_weight_list, random_seed=random_seed,
+        baseline_weights_of_weights=sorted_baseline_weights_of_weights, baseline_loss=baseline_test_loss,
         norm_func=normalize_weights_of_weights,
         avg_func=lambda w, w_of_w: average_weights_with_weights_of_weights(w, w_of_w),
         eval_func=lambda avg_w: evaluate_averaged_weights(avg_w, global_data, global_model, global_trainer_config)
     )
-    # Define the RL agent policy and the policy network architecture
-    max_number_of_neurons = int(2**(len(local_model_weight_list)))
-    policy_kwargs = dict(net_arch=[max_number_of_neurons, int(max_number_of_neurons/2)])
-    model = PPO("MlpPolicy", rl_env, policy_kwargs=policy_kwargs, verbose=1, n_steps=search_range_size)
+
+    rl_model_id = f"""rl-model-participants-{"-".join(sorted_local_model_ids)}"""
+    rl_model_dirpath = os.path.join(model_save_dir, 'rl-models')
+    rl_model_filepath = os.path.join(rl_model_dirpath, f"{rl_model_id}.zip")
+    if os.path.exists(rl_model_filepath):
+        print(f"Loading preexisting PPO model from {rl_model_filepath}")
+        model = PPO.load(rl_model_filepath, env=rl_env)
+    else:
+        # Define the RL agent policy and the policy network architecture
+        max_number_of_neurons = int(2**(len(local_model_weight_list)))
+        net_arch = [max_number_of_neurons, int(max_number_of_neurons/2)]
+        policy_kwargs = dict(net_arch=net_arch)
+        print(f"Creating new PPO model with n_steps={search_range_size} and net_arch={net_arch}")
+        model = PPO("MlpPolicy", rl_env,
+                    verbose=1,
+                    policy_kwargs=policy_kwargs,
+                    n_steps=max(search_range_size, 2),
+                    tensorboard_log=rl_model_dirpath)
+
+    # Define the early stopping callback by Number of steps without improvement before stopping
+    early_stopping_patience = max(10, len(local_model_ids) * 10)
+    early_stopping = StopTrainingOnNoModelImprovement(early_stopping_patience, verbose=1)
+
+    # Define the evaluation callback.
+    eval_callback = EvalCallback(rl_env,
+                                 best_model_save_path=f"best-{rl_model_filepath}",
+                                 callback_after_eval=early_stopping,
+                                 eval_freq=int(search_range_size/10),
+                                 n_eval_episodes=int(search_range_size/10),
+                                 verbose=1)
+
     # Train the RL agent
-    model.learn(total_timesteps=search_range_size, progress_bar=True)
+    print(f"Training PPO model with total_timesteps={search_range_size}")
+    model.learn(total_timesteps=search_range_size, progress_bar=True, callback=[eval_callback, early_stopping])
     # Get the best action (weights of weights) from the learned policy
-    best_action, _ = model.predict(np.array(baseline_weights_of_weights))
-    return [normalize_weights_of_weights(best_action.tolist())]
+    best_action, _ = model.predict(np.array(sorted_baseline_weights_of_weights))
+    sorted_best_weight_of_weights = normalize_weights_of_weights(best_action.tolist())
+    best_w_of_w_by_model_id = {
+        str(sorted_local_model_ids[i]): sorted_best_weight_of_weights[i] for i in range(len(sorted_local_model_ids))
+    }
+    best_weight_of_weights = [best_w_of_w_by_model_id[str(model_id)] for model_id in local_model_ids]
+    print(f"Best weight of weights predicted by PPO Model: {best_weight_of_weights}")
+
+    # save RL agent state
+    print(f"Saving PPO model at {rl_model_filepath}")
+    if not os.path.exists(rl_model_dirpath):
+        os.makedirs(rl_model_dirpath)
+    model.save(rl_model_filepath)
+
+    return [best_weight_of_weights]
 
 
 def compute_w_of_w_combinations_with_random_search(
         local_model_weight_list, rng_seed, search_range_size,
-        weights_of_weights_sampling_function
+        weights_of_weights_sampling_function, **kwargs
 ):
     w_of_w_combinations = []
     for i in range(search_range_size):
@@ -378,7 +441,7 @@ def compute_w_of_w_combinations_with_random_search(
     return w_of_w_combinations
 
 
-def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search_range_size):
+def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search_range_size, **kwargs):
     # Define the range of weights to try for each local model
     grid_length = compute_optimal_grid_length(search_range_size, local_model_weight_list)
     weight_of_weights_range = [i / grid_length for i in range(grid_length + 1)]
@@ -394,7 +457,7 @@ def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search
 
 def compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds
+        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
 ):
     best_w_of_w_combinations = []
     best_test_losses = []
