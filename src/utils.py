@@ -408,7 +408,7 @@ def compute_w_of_w_combinations_with_reinforcement_learning(
 
     # Train the RL agent
     print(f"Training PPO model with total_timesteps={search_range_size}")
-    model.learn(total_timesteps=search_range_size, progress_bar=True, callback=[eval_callback, early_stopping])
+    model.learn(total_timesteps=search_range_size, progress_bar=True)
     # Get the best action (weights of weights) from the learned policy
     best_action, _ = model.predict(np.array(sorted_baseline_weights_of_weights))
     sorted_best_weight_of_weights = normalize_weights_of_weights(best_action.tolist())
