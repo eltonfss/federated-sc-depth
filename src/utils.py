@@ -400,7 +400,7 @@ def compute_w_of_w_combinations_with_reinforcement_learning(
 
     # Define the evaluation callback.
     eval_callback = EvalCallback(rl_env,
-                                 best_model_save_path=f"best-{rl_model_filepath}",
+                                 best_model_save_path=os.path.join(rl_model_dirpath, f"best-{rl_model_filepath}"),
                                  callback_after_eval=early_stopping,
                                  eval_freq=int(search_range_size/10),
                                  n_eval_episodes=int(search_range_size/10),
