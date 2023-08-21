@@ -207,18 +207,18 @@ def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_partici
     if is_iid:
         train_dataset_size = global_data.get_dataset_size("train")
         sample_train_indexes_by_participant = compute_iid_sample_partitions(dataset_size=train_dataset_size, num_partitions=num_participants)
-        title = "<b>Number of Samples by Participant (IID)</b>"
-        name = "<b>Random Distribution (IID)</b>"
+        title = "<b>Number of Samples by Participant (FT-IID)</b>"
+        name = "<b>FT-IID</b>"
         bar_color = 'purple'
     else:
         sample_train_indexes_by_participant = compute_sample_partitions_by_drive(global_data, num_participants, redistribute_remaining)
         if redistribute_remaining:
-            title = "<b>Number of Samples by Participant (By Drive With Redistribution)</b>"
+            title = "<b>Number of Samples by Participant (FT-NIID With Redistribution)</b>"
             bar_color = 'rgb(255, 118, 26)'
-            name = "<b>By Drive w/ Redistribution</b>"
+            name = "<b>FT-NIID</b>"
         else:
-            title = "<b>Number of Samples by Participant (By Drive)</b>"
-            name = "<b>By Drive (Non-IID)</b>"
+            title = "<b>Number of Samples by Participant (FT-NIID Without Redistribution)</b>"
+            name = "<b>FT-NIID without Redistribution </b>"
             bar_color = 'rgb(26, 118, 255)'
 
     sample_train_indexes_count_by_participant = {key: len(sample_train_indexes) for key, sample_train_indexes in sample_train_indexes_by_participant.items()}
