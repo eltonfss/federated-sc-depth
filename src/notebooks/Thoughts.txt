@@ -1,7 +1,0 @@
-SINCE 42440(dataset size)/4(batch size)/1000(epoch size) = 10.61 to get at least 1000 batches per participant we need at most 10 participants in the IID case
-Therefore it makes sense to try to run with 10 participants and 1000 batches of local training
-In the non IID Case (BY DRIVE) we can produce a similar configuration by picking the 10 participants with the most samples for the training (or picking them randomly, which will be more risky)
-If those configurations converge, we can compare them with the original centralized training. 
-The total communication and computational cost will likely be even lower than with 34 participants.
-We just need to characterize well the IID and NON-IIDness of the Federated training scenarios
- Redistribute remaining data for Non-IID participants

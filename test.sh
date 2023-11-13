@@ -4,39 +4,13 @@ export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
 export CUDA_VISIBLE_DEVICES=0
 
-# 10_participants_5_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=09_05_2023_10:30:05
-#FEDERATION_ROUND=7
-
-# 9_participants_3_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=10_05_2023_21:58:21
-#FEDERATION_ROUND=11
-
-# 10_participants_10_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=13_05_2023_22:52:57
-#FEDERATION_ROUND=9
-
-# 10_participants_5_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=08_05_2023_23:18:52
-#FEDERATION_ROUND=10
-
-# 9_participants_3_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=09_05_2023_22:03:14
-#FEDERATION_ROUND=9
-
-# 10_participants_10_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=12_05_2023_19:50:36
-#FEDERATION_ROUND=11
-
-#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/02_05_2023/last.ckpt
-PT="/home/eltons-pc/Backup/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
-#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized"
-TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
+PT="<OUTPUT_DIR>/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
+TEST_OUTPUT_DIR="<OUTPUT_PATH>/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
 TEST_OUTPUT_LOG="$TEST_OUTPUT_DIR/test.log"
 
 DATASET=kitti
-CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
-DATASET_DIR="/home/eltons-pc/Datasets/$DATASET"
+CONFIG_DIR="<CONFIGPATH>/v3/kitti_raw.txt" # directory where configs are according to https://github.com/JiawangBian/sc_depth_pl instructions
+DATASET_DIR="<DATAPATH>/kitti" # directory where kitti data is according to https://github.com/JiawangBian/sc_depth_pl instructions
 TEST_INPUT_DIR=$DATASET_DIR/testing/color
 TEST_GT_DIR=$DATASET_DIR/testing/depth
 TEST_SEG_MASK=$DATASET_DIR/testing/seg_mask
