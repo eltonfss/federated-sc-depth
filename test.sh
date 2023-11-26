@@ -4,42 +4,36 @@ export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
 export CUDA_VISIBLE_DEVICES=0
 
-# 10_participants_5_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=09_05_2023_10:30:05
-#FEDERATION_ROUND=7
+# (BOFEDSCDEPTH-KITTI) DISTRIBUTION = IID; TOTAL PARTICIPANTS = 12 ; PARTICIPANTS PER ROUND = 4 ; LOCAL EPOCHS = 3; SEARCH RANGE = 6; MAX LOCAL BATCHES TRAIN = 1000; MAX LOCAL BATCHES VAL = -1; MAX_ROUNDS = 36 ;
+#FEDERATED_MODEL_TIMESTAMP='03_09_2023_13:07:11'
+#FEDERATION_ROUND=8
 
-# 9_participants_3_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=10_05_2023_21:58:21
+# (BOFEDSCDEPTH-DDAD) DISTRIBUTION = NIID; TOTAL PARTICIPANTS = 12 ; PARTICIPANTS PER ROUND = 4 ; LOCAL EPOCHS = 3; SEARCH RANGE = 6; MAX LOCAL BATCHES TRAIN = 1000; MAX LOCAL BATCHES VAL = -1; MAX_ROUNDS = 36 ;
+#FEDERATED_MODEL_TIMESTAMP='09_10_2023_22:04:30'
 #FEDERATION_ROUND=11
 
-# 10_participants_10_per_round_12_rounds_1_local_epochs_iid
-#FEDERATED_MODEL_TIMESTAMP=13_05_2023_22:52:57
-#FEDERATION_ROUND=9
+# FEDERATED
+#PT="/home/eltons-pc/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
+#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
 
-# 10_participants_5_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=08_05_2023_23:18:52
-#FEDERATION_ROUND=10
+# CENTRALIZED KITTI
+CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti/02_05_2023/last.ckpt
+TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized/02_05_2023"
 
-# 9_participants_3_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=09_05_2023_22:03:14
-#FEDERATION_ROUND=9
+# CENTRALIZED DDAD
+#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad/10_06_2023/last.ckpt
+#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized/10_06_2023"
 
-# 10_participants_10_per_round_12_rounds_1_local_epochs_by_drive
-#FEDERATED_MODEL_TIMESTAMP=12_05_2023_19:50:36
-#FEDERATION_ROUND=11
-
-# 10_participants_5_per_round_12_rounds_3_local_epochs_by_drive
-FEDERATED_MODEL_TIMESTAMP=22_05_2023_19:44:26
-FEDERATION_ROUND=11
-
-#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/02_05_2023/last.ckpt
-PT="/home/eltons-pc/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
-#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized"
-TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
 TEST_OUTPUT_LOG="$TEST_OUTPUT_DIR/test.log"
 
+# DATASET KITTI
 DATASET=kitti
-CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
+CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt" # KITTI
+
+# DATASET DDAD
+#DATASET=ddad
+#CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt" # DDAD
+
 DATASET_DIR="/home/eltons-pc/Datasets/$DATASET"
 TEST_INPUT_DIR=$DATASET_DIR/testing/color
 TEST_GT_DIR=$DATASET_DIR/testing/depth
