@@ -2,12 +2,12 @@ export PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_m
 echo "PYTORCH_CUDA_ALLOC_CONF=$PYTORCH_CUDA_ALLOC_CONF"
 export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
-CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
-DATASET_DIR="/home/eltons-pc/Datasets/kitti"
-#CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
-#DATASET_DIR="/home/eltons-pc/Datasets/ddad"
+#CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
+#DATASET_DIR="/home/eltons-pc/Datasets/kitti"
+CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
+DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/26_11_2023_00:45:14"
+RESTORE_DIR="$OUTPUT_DIR/15_12_2023_19:31:07"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -29,8 +29,8 @@ FED_TRAIN_NUM_EPOCHS=2
 
 # PARTICIPATION RATION
 #FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
-FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
-#FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
+#FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
+FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
 
 FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
 #FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
