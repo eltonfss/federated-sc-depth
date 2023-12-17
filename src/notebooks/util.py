@@ -69,7 +69,7 @@ def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_s
     return fig
 
 
-def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1, show_legend=True):
+def get_centralized_training_charts(centralized_training_dirpath, centralized_training_id, label=None, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb=0, num_clients=1, num_val_samples=None, batch_size=None, show_legend=True):
     
     # Define variables
     dir_path = os.path.join(centralized_training_dirpath, centralized_training_id)
@@ -77,6 +77,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     # TODO Read CSV file
     df = pd.read_csv(os.path.join(centralized_training_dirpath, centralized_training_id, 'val_loss.csv'))
     num_steps = [n/1000 for n in list(df['Step'])]
+    num_inferences = [((num_val_samples/batch_size)*(s/1000)) for s in num_steps]
     test_loss = list(df['Value'])
 
     # Create global test loss figures
@@ -99,8 +100,13 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     # Create combined test_loss and communication cost figures
     test_loss_by_communication_cost_fig = go.Figure()
     test_loss_by_communication_cost_fig.add_trace(go.Scatter(mode='lines+markers', x=communication_costs, y=lowest_test_loss, name=label or centralized_training_id))
+    
+    # Create num inferences figure
+    num_inferences_by_training_step_fig = go.Figure()
+    num_inferences_by_training_step_fig.add_trace(go.Scatter(mode='lines+markers', x=num_steps, y=num_inferences, name=label or federated_training_id))
+    num_inferences_by_training_step_fig = standardize_fig(num_inferences_by_training_step_fig, show_legend=show_legend)
 
-    return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig
+    return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig, num_inferences_by_training_step_fig
 
 
 def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True, resample_local_batches=True, cost_upper_bound=True):
@@ -123,7 +129,9 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     fed_train_num_participants = config_args['fed_train_num_participants']
     fed_train_frac_participants_per_round = config_args['fed_train_frac_participants_per_round']
     sample_train_indexes_by_participant = federated_training_state['sample_train_indexes_by_participant']
+    sample_val_indexes_by_participant = federated_training_state['sample_val_indexes_by_participant']
     participant_order_by_round = federated_training_state['participant_order_by_round']
+    search_range_size = config_args.get('fed_train_average_search_range', -1)
     
     num_participants_per_round = num_participants * frac_participants_per_round
     if model_size_mb is None:
@@ -132,16 +140,35 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     
     # compute number of steps by round (computational cost)
     num_steps_per_round = []
+    num_inferences_per_round = []
+    num_averagings_per_round = []
     total_steps = 0
+    total_inferences = 0
+    total_averagings = 0
+    max_inferences_per_epoch = 0
     for round_num, participant_order in participant_order_by_round.items():
-        #num_participants = len(participant_order)
+        if len(num_steps_per_round) == round_cap:
+            break
         for participant_id in participant_order:
-            num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
-            num_batches_available = num_samples_available / fed_train_local_batch_size
-            num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_batches_available)) 
-            num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
-            total_steps += num_steps_participant
+            num_train_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
+            num_train_batches_available = num_train_samples_available / fed_train_local_batch_size
+            num_train_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_train_batches_available))
+            num_train_steps_participant = fed_train_num_local_epochs * num_train_batches_per_epoch
+            total_steps += num_train_steps_participant
+            num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)]) / fed_train_local_batch_size
+            total_inferences += num_inferences_per_epoch * fed_train_num_local_epochs
+            max_inferences_per_epoch = max(num_inferences_per_epoch, max_inferences_per_epoch)
         num_steps_per_round.append(total_steps/1000)
+        total_averagings += 1
+        if search_range_size > 0:
+            n_initial_random_points = int(len(participant_order) * search_range_size)
+            n_optimization_iterations = max(n_initial_random_points * 2, 5)
+            total_inferences += n_optimization_iterations * max_inferences_per_epoch
+            total_averagings += n_optimization_iterations
+        else:
+            total_inferences += max_inferences_per_epoch
+        num_inferences_per_round.append(total_inferences/1000)
+        num_averagings_per_round.append(total_averagings/1000)
 
     # Extract global metrics federated_training_state
     global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
@@ -150,6 +177,8 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     # Calculate communication cost and num_steps up to the lowest loss for each round
     communication_cost = [0] * len(global_test_loss)
     num_steps = [0] * len(global_test_loss)
+    num_inferences = [0] * len(global_test_loss)
+    num_averagings = [0] * len(global_test_loss)
     lowest_loss_so_far = float('inf')
     for round_idx in range(len(global_test_loss)):
         if cost_upper_bound:
@@ -157,15 +186,19 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
         else:
             round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
         round_num_steps = num_steps_per_round[round_idx]
+        round_num_inferences = num_inferences_per_round[round_idx]
+        round_num_averagings = num_averagings_per_round[round_idx]
         if global_test_loss[round_idx] < lowest_loss_so_far:
             lowest_loss_so_far = global_test_loss[round_idx]
-            #print('num_participants', num_participants)
-            #print('round_communication_cost', round_communication_cost)
         else:
             round_communication_cost = communication_cost[round_idx - 1]
             round_num_steps = num_steps[round_idx - 1]
+            round_num_inferences = num_inferences[round_idx - 1]
+            round_num_averagings = num_averagings[round_idx - 1]
         communication_cost[round_idx] = round_communication_cost
         num_steps[round_idx] = round_num_steps
+        num_inferences[round_idx] = round_num_inferences
+        num_averagings[round_idx] = round_num_averagings
         
 
     # Create global test loss figures
@@ -189,6 +222,14 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     communication_cost_by_training_step_fig.add_trace(go.Scatter(mode='lines+markers', x=num_steps_per_round, y=communication_cost, name=label or federated_training_id))
     communication_cost_by_training_step_fig = standardize_fig(communication_cost_by_training_step_fig, show_legend=show_legend)
     
+    # Create estimated computational cost figures
+    num_inferences_by_training_step_fig = go.Figure()
+    num_inferences_by_training_step_fig.add_trace(go.Scatter(mode='lines+markers', x=num_steps_per_round, y=num_inferences_per_round, name=label or federated_training_id))
+    num_inferences_by_training_step_fig = standardize_fig(num_inferences_by_training_step_fig, show_legend=show_legend)
+    num_averagings_by_training_step_fig = go.Figure()
+    num_averagings_by_training_step_fig.add_trace(go.Scatter(mode='lines+markers', x=num_steps_per_round, y=num_averagings_per_round, name=label or federated_training_id))
+    num_averagings_by_training_step_fig = standardize_fig(num_averagings_by_training_step_fig, show_legend=show_legend)
+    
     # Create combined test_loss and communication cost figures
     test_loss_by_communication_cost_fig = go.Figure()
     test_loss_by_communication_cost_fig.add_trace(go.Scatter(mode='lines+markers', x=communication_cost, y=lowest_global_test_loss, name=label or federated_training_id))
@@ -199,7 +240,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     training_steps_by_round_fig.add_trace(go.Scatter(mode='lines+markers', x=list(range(len(num_steps))), y=num_steps, name=label or federated_training_id))
     training_steps_by_round_fig = standardize_fig(training_steps_by_round_fig, show_legend=show_legend)
         
-    return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig, training_steps_by_round_fig
+    return test_loss_by_round_fig, communication_cost_by_round_fig, test_loss_by_training_step_fig, communication_cost_by_training_step_fig, num_inferences_by_training_step_fig, num_averagings_by_training_step_fig, test_loss_by_communication_cost_fig, training_steps_by_round_fig
 
 
 def get_samples_by_participant_chart(global_data: any, is_iid: bool, num_participants: int, redistribute_remaining: bool, fig: go.Figure = None, x_tick_size=25, y_tick_size=25, legend_size=25):
@@ -399,7 +440,7 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
                 num_train_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_train_batches_available))
                 num_train_steps_participant = fed_train_num_local_epochs * num_train_batches_per_epoch
                 total_steps += num_train_steps_participant
-                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)])
+                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)]) / fed_train_local_batch_size
                 total_inferences += num_inferences_per_epoch * fed_train_num_local_epochs
                 max_inferences_per_epoch = max(num_inferences_per_epoch, max_inferences_per_epoch)
             num_steps_per_round.append(total_steps)
@@ -409,6 +450,8 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
                 n_optimization_iterations = max(n_initial_random_points * 2, 5)
                 total_inferences += n_optimization_iterations * max_inferences_per_epoch
                 total_averagings += n_optimization_iterations
+            else:
+                total_inferences += max_inferences_per_epoch
             num_inferences_per_round.append(total_inferences)
             num_averagings_per_round.append(total_averagings)
 
@@ -464,7 +507,7 @@ def get_metrics_by_num_participants(federated_training_dirpath, round_cap, feder
         best_index = best_val_losses.index(best_val_loss)
         best_communication_cost = communication_costs[best_index]
         best_num_steps = num_steps[best_index]
-        best_num_inferences = num_inferences[best_index]/1000
+        best_num_inferences = num_inferences[best_index]
         best_num_averagings = num_averagings[best_index]
         best_num_epochs = num_epochs[best_index]
         best_fed_id = fed_ids[best_index]
@@ -538,7 +581,7 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
                 num_train_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_train_batches_available))
                 num_train_steps_participant = fed_train_num_local_epochs * num_train_batches_per_epoch
                 total_steps += num_train_steps_participant
-                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)])
+                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)]) / fed_train_local_batch_size
                 total_inferences += num_inferences_per_epoch * fed_train_num_local_epochs
                 max_inferences_per_epoch = max(num_inferences_per_epoch, max_inferences_per_epoch)
             num_steps_per_round.append(total_steps)
@@ -548,9 +591,11 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
                 n_optimization_iterations = max(n_initial_random_points * 2, 5)
                 total_inferences += n_optimization_iterations * max_inferences_per_epoch
                 total_averagings += n_optimization_iterations
+            else:
+                total_inferences += max_inferences_per_epoch
             num_inferences_per_round.append(total_inferences)
             num_averagings_per_round.append(total_averagings)
-
+        
         # Extract global metrics federated_training_state
         global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
         global_test_loss = global_test_loss[:round_cap]
@@ -602,7 +647,7 @@ def get_metrics_by_num_epochs(federated_training_dirpath, round_cap, federated_t
         best_index = best_val_losses.index(best_val_loss)
         best_communication_cost = communication_costs[best_index]
         best_num_steps = num_steps[best_index]
-        best_num_inferences = num_inferences[best_index] / 1000
+        best_num_inferences = num_inferences[best_index]
         best_num_averagings = num_averagings[best_index]
         best_fed_id = fed_ids[best_index]
         best_val_loss_by_epochs[num_epochs] = best_val_loss
@@ -669,7 +714,7 @@ def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_t
                 num_train_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(min(fed_train_num_local_train_batches, num_train_batches_available))
                 num_train_steps_participant = fed_train_num_local_epochs * num_train_batches_per_epoch
                 total_steps += num_train_steps_participant
-                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)])
+                num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)]) / fed_train_local_batch_size
                 total_inferences += num_inferences_per_epoch * fed_train_num_local_epochs
                 max_inferences_per_epoch = max(num_inferences_per_epoch, max_inferences_per_epoch)
             num_steps_per_round.append(total_steps)
@@ -679,6 +724,8 @@ def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_t
                 n_optimization_iterations = max(n_initial_random_points * 2, 5)
                 total_inferences += n_optimization_iterations * max_inferences_per_epoch
                 total_averagings += n_optimization_iterations
+            else:
+                total_inferences += max_inferences_per_epoch
             num_inferences_per_round.append(total_inferences)
             num_averagings_per_round.append(total_averagings)
 
@@ -745,7 +792,7 @@ def get_metrics_by_num_rounds(federated_training_dirpath, round_cap, federated_t
         best_index = best_val_losses.index(best_val_loss)
         best_communication_cost = communication_costs[best_index]
         best_num_steps = num_steps[best_index]
-        best_num_inferences = num_inferences[best_index] / 1000
+        best_num_inferences = num_inferences[best_index]
         best_num_averagings = num_averagings[best_index]
         best_fed_id = federated_training_ids[best_index]
         best_val_loss_by_rounds[num_round] = best_val_loss
