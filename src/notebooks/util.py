@@ -109,7 +109,7 @@ def get_centralized_training_charts(centralized_training_dirpath, centralized_tr
     return test_loss_by_training_step_fig, communication_cost_by_training_step_fig, test_loss_by_communication_cost_fig, num_inferences_by_training_step_fig
 
 
-def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True, resample_local_batches=True, cost_upper_bound=True):
+def get_federated_training_charts(federated_training_dirpath, round_cap, federated_training_id, label=None, sudo_centralized=False, dataset_size_in_gb = 0, cost_multiplier = 1, model_size_mb = None, show_legend=True, resample_local_batches=True, cost_upper_bound=True, avg_by_participant=False, smart_global_update=False):
     
     # Define variables
     dir_path = os.path.join(federated_training_dirpath, federated_training_id)
@@ -147,6 +147,7 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     total_averagings = 0
     max_inferences_per_epoch = 0
     for round_num, participant_order in participant_order_by_round.items():
+        total_inferences_round = 0
         if len(num_steps_per_round) == round_cap:
             break
         for participant_id in participant_order:
@@ -156,23 +157,29 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
             num_train_steps_participant = fed_train_num_local_epochs * num_train_batches_per_epoch
             total_steps += num_train_steps_participant
             num_inferences_per_epoch = len(sample_val_indexes_by_participant[str(participant_id)]) / fed_train_local_batch_size
-            total_inferences += num_inferences_per_epoch * fed_train_num_local_epochs
+            total_inferences_round += num_inferences_per_epoch * fed_train_num_local_epochs
             max_inferences_per_epoch = max(num_inferences_per_epoch, max_inferences_per_epoch)
+        if avg_by_participant:
+            total_steps = total_steps / num_participants_per_round
+            total_inferences_round = total_inferences_round / num_participants_per_round
         num_steps_per_round.append(total_steps/1000)
         total_averagings += 1
         if search_range_size > 0:
             n_initial_random_points = int(len(participant_order) * search_range_size)
             n_optimization_iterations = max(n_initial_random_points * 2, 5)
-            total_inferences += n_optimization_iterations * max_inferences_per_epoch
+            total_inferences_round += n_optimization_iterations * max_inferences_per_epoch
             total_averagings += n_optimization_iterations
         else:
-            total_inferences += max_inferences_per_epoch
+            total_inferences_round += max_inferences_per_epoch
+        total_inferences += total_inferences_round
         num_inferences_per_round.append(total_inferences/1000)
         num_averagings_per_round.append(total_averagings/1000)
 
     # Extract global metrics federated_training_state
     global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
     global_test_loss = global_test_loss[:round_cap]
+    aggregation_optimization_info = list(federated_training_state['aggregation_optimization_info_by_round'].values())
+    aggregation_optimization_info = aggregation_optimization_info[:round_cap]
 
     # Calculate communication cost and num_steps up to the lowest loss for each round
     communication_cost = [0] * len(global_test_loss)
@@ -181,16 +188,25 @@ def get_federated_training_charts(federated_training_dirpath, round_cap, federat
     num_averagings = [0] * len(global_test_loss)
     lowest_loss_so_far = float('inf')
     for round_idx in range(len(global_test_loss)):
-        if cost_upper_bound:
-            round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+        
+        
+        # compute communication cost
+        if avg_by_participant:
+            participant_cost_multiplier = 0
+        elif cost_upper_bound:
+            participant_cost_multiplier = num_participants
         else:
-            round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
+            participant_cost_multiplier = num_participants_per_round
+        round_communication_cost = 2 * participant_cost_multiplier * bytes_per_participant * (round_idx + 1)
+        
+        # compare global losses and use the corresponding values of the lowest
         round_num_steps = num_steps_per_round[round_idx]
         round_num_inferences = num_inferences_per_round[round_idx]
         round_num_averagings = num_averagings_per_round[round_idx]
-        if global_test_loss[round_idx] < lowest_loss_so_far:
+        if global_test_loss[round_idx] < lowest_loss_so_far and aggregation_optimization_info[round_idx].get('loss_worse_than_previous_round', False) is False:
             lowest_loss_so_far = global_test_loss[round_idx]
-        else:
+        elif smart_global_update:
+            print(round_idx, "update skipped")
             round_communication_cost = communication_cost[round_idx - 1]
             round_num_steps = num_steps[round_idx - 1]
             round_num_inferences = num_inferences[round_idx - 1]
