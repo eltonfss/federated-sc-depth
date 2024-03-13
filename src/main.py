@@ -114,6 +114,9 @@ if __name__ == "__main__":
         print(f"restoring trained model from {config_args.pt_path}")
         weights = torch.load(config_args.pt_path)
         global_model.load_state_dict(weights)
+    elif config_args.ckpt_path:
+        print(f"restoring trained model from {config_args.ckpt_path}")
+        global_model = global_model.load_from_checkpoint(config_args.ckpt_path, strict=False)
     if global_model is None:
         raise Exception("model_version is invalid! Only v3 is currently supported!")
     if restoring_federation_state and not skip_restore:
