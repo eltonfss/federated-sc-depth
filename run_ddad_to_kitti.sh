@@ -14,7 +14,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/kitti"
 SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-#RESTORE_DIR="$OUTPUT_DIR/15_12_2023_19:31:07"
+RESTORE_DIR="$OUTPUT_DIR/15_03_2024_11:22:23"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 PARTICIPANT_SORTING="sequential" #IID

@@ -6,7 +6,7 @@ echo "PYTHONPATH=$PYTHONPATH"
 # KITTI
 #CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
 #DATASET_DIR="/home/eltons-pc/Datasets/kitti"
-SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/15_11_2023_02:38:56/round_3/global_model_weights.pt"
+SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/03_09_2023_13:07:11/round_3/global_model_weights.pt"
 
 # DDAD
 CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
@@ -14,7 +14,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 #SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/12_03_2024_21:55:48"
+RESTORE_DIR="$OUTPUT_DIR/13_03_2024_22:30:44"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -39,11 +39,11 @@ FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
 #FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
 #FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
 
-FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
-#FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
+#FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
+FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
 
-FED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
-#FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
+#FED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
+FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
 
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
