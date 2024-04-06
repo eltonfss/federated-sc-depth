@@ -21,8 +21,21 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
 
     def training_step(self, batch, batch_idx):
         # print(f'training_step called for {batch_idx=} batch={len(batch)}')
-        tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
 
+        # train with current batch and add it to buffer
+        super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
+        self._apply_experience_replay(batch)
+        self._er_buffer.add_batch_to_buffer(
+            ExperienceReplayBatchInfo(
+                dataset_name=self._dataset_name,
+                batch_idx=batch_idx,
+                batch_data=batch
+            )
+        )
+        self._batch_count += 1
+
+    def _apply_experience_replay(self, batch):
+        tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
         # replay batches from buffer
         # print(f'{self._batch_count=}, {self._er_frequency=}')
         if self._batch_count > 0 and self._batch_count % self._er_frequency == 0:
@@ -40,12 +53,15 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
 
                 # redimension height and width
                 shape_img = tgt_img.shape[2:]
-                b_tgt_img_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(tgt_img.shape).to(device, dtype=torch.float)
+                b_tgt_img_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(tgt_img.shape).to(device,
+                                                                                                       dtype=torch.float)
                 shape_depth = tgt_pseudo_depth.shape[2:]
-                b_tgt_pseudo_depth_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(tgt_pseudo_depth.shape).to(device, dtype=torch.float)
+                b_tgt_pseudo_depth_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(
+                    tgt_pseudo_depth.shape).to(device, dtype=torch.float)
                 shape_ref_imgs = ref_imgs[0].shape[2:]
                 b_ref_imgs_rescaled = []
-                b_intrinsics_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(intrinsics.shape).to(device, dtype=torch.float)
+                b_intrinsics_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(intrinsics.shape).to(device,
+                                                                                                             dtype=torch.float)
                 for i in range(b_tgt_img.shape[0]):
                     # print(f"reshaping img from {b_tgt_img[i].shape[1:]} to {shape_img}")
                     # print(f"reshaping depth from {b_tgt_pseudo_depth[i].shape[1:]} to {shape_depth}")
@@ -81,7 +97,7 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                             b_ref_imgs_rescaled[k][i][j] = to_tensor(ref_image_transform(to_pil(b_ref_imgs_i[k][j])))
                             assert b_ref_imgs_rescaled[k][i][j].shape == shape_ref_imgs
                             # print(f"reshaped ref img to {tuple(b_ref_imgs_rescaled[k][i][j].shape)}")
-                            
+
                     (orig_w, orig_h) = tuple(b_tgt_img[i].shape[1:])
                     (out_h, out_w) = tuple(shape_img)
                     b_intrinsics_rescaled = np.copy(b_intrinsics)
@@ -94,7 +110,8 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                     # print(f"rescaled intrinsics weight by {w_factor} and height by {h_factor}")
 
                 x.batch_data = (
-                    b_tgt_img_rescaled, b_tgt_pseudo_depth_rescaled, b_ref_imgs_rescaled, b_intrinsics_rescaled, b_scene_id
+                    b_tgt_img_rescaled, b_tgt_pseudo_depth_rescaled, b_ref_imgs_rescaled, b_intrinsics_rescaled,
+                    b_scene_id
                 )
                 return x
 
@@ -107,15 +124,3 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                 super(SCDepthModuleV3WithExperienceReplay, self).training_step(
                     batch=batch_info.batch_data, batch_idx=batch_info.batch_idx
                 )
-
-        # train with current batch and add it to buffer
-        # print(f"Training with current batch {batch_idx=} batch={len(batch)}")
-        super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
-        self._er_buffer.add_batch_to_buffer(
-            ExperienceReplayBatchInfo(
-                dataset_name=self._dataset_name,
-                batch_idx=batch_idx,
-                batch_data=batch
-            )
-        )
-        self._batch_count += 1
