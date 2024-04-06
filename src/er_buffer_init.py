@@ -12,7 +12,7 @@ def initialize_er_buffer(
     for dataset_name, dataset_dir in datasets:
         sc_depth_params = copy.deepcopy(hparams)
         sc_depth_params.dataset_name = dataset_name
-        sc_depth_params.dataset_ir = dataset_dir
+        sc_depth_params.dataset_dir = dataset_dir
         data_module = SCDepthDataModule(sc_depth_params)
         data_module.setup("train")
         dataset_size = data_module.get_dataset_size("train")
