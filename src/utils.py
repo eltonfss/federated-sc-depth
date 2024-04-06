@@ -1,5 +1,7 @@
 import copy
 from datetime import datetime
+
+from er_buffer import ExperienceReplayBuffer, ExperienceReplayBufferState
 from sgd_regressor import OptimizedSGDRegressor
 
 import torch
@@ -40,7 +42,19 @@ def backup_and_restore_federated_training_state(save_directory_path, federated_t
 
 
 def backup_federated_training_state(save_directory_path, federated_training_state):
+
+    global_er_buffer = federated_training_state.pop('global_er_buffer', None)
+    if global_er_buffer:
+        federated_training_state['global_er_buffer_state'] = global_er_buffer.get_buffer_state().to_dict()
+
+    local_er_buffer_by_participant = federated_training_state.pop('local_er_buffer_by_participant', {})
+    local_er_buffer_state_by_participant = {}
+    for participant, local_er_buffer in local_er_buffer_by_participant.items():
+        local_er_buffer_state_by_participant[participant] = local_er_buffer.get_buffer_state().to_dict()
+    federated_training_state['local_er_buffer_state_by_participant'] = local_er_buffer_state_by_participant
+
     save_dict_or_list_as_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME, federated_training_state)
+
     snapshots_path = os.path.join(save_directory_path, "snapshots")
     previous_snapshots_filenames = os.listdir(snapshots_path) if os.path.exists(snapshots_path) else []
     previous_snapshot_filename = None
@@ -52,9 +66,31 @@ def backup_federated_training_state(save_directory_path, federated_training_stat
     if previous_snapshot_filename:
         os.remove(os.path.join(snapshots_path, previous_snapshot_filename))
 
+    federated_training_state['global_er_buffer'] = global_er_buffer
+    federated_training_state['local_er_buffer_by_participant'] = local_er_buffer_by_participant
+
 
 def restore_federated_training_state(save_directory_path):
-    return read_dict_or_list_from_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME)
+    federated_training_state = read_dict_or_list_from_json(save_directory_path, FEDERATED_TRAINING_STATE_FILENAME)
+
+    global_er_buffer_state = federated_training_state.pop('global_er_buffer_state', None)
+    if global_er_buffer_state:
+        federated_training_state['global_er_buffer'] = restore_er_buffer_from_state(global_er_buffer_state)
+
+    local_er_buffer_state_by_participant = federated_training_state.pop('local_er_buffer_state_by_participant', {})
+    local_er_buffer_by_participant = {}
+    for participant, local_er_buffer_state in local_er_buffer_state_by_participant.items():
+        local_er_buffer_by_participant[participant] = restore_er_buffer_from_state(local_er_buffer_state)
+    federated_training_state['local_er_buffer_by_participant'] = local_er_buffer_by_participant
+
+    return federated_training_state
+
+
+def restore_er_buffer_from_state(er_buffer_state):
+    er_buffer = ExperienceReplayBuffer(-1)
+    er_buffer_state = ExperienceReplayBufferState.from_dict(er_buffer_state)
+    er_buffer.set_buffer_state(er_buffer_state)
+    return er_buffer
 
 
 def save_dict_or_list_as_json(save_directory_path, filename_without_extension, dict_or_list,

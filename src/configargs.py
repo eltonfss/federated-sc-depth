@@ -11,12 +11,17 @@ def get_configargs():
     # dataset
     parser.add_argument('--dataset_dir', type=str)
     parser.add_argument('--dataset_name', type=str, default='kitti', choices=['kitti', 'nyu', 'ddad', 'bonn', 'tum'])
+    parser.add_argument('--replay_dataset_dir', type=str, default="")
+    parser.add_argument('--replay_dataset_name', type=str, default="", choices=['kitti', 'nyu', 'ddad', 'bonn', 'tum'])
     parser.add_argument('--sequence_length', type=int, default=3, help='number of images for training')
     parser.add_argument('--skip_frames', type=int, default=1, help='jump sampling from video')
     parser.add_argument('--use_frame_index', action='store_true', help='filter out static-camera frames in video')
 
     # model
-    parser.add_argument('--model_version', type=str, default='v1', choices=['v1', 'v2', 'v3'])
+    parser.add_argument('--model_version', type=str, default='v1', choices=['v1', 'v2', 'v3', 'v3_with_er'])
+    parser.add_argument('--er_buffer_size', type=int, default=-1)
+    parser.add_argument('--er_size', type=int, default=-1)
+    parser.add_argument('--er_frequency', type=int, default=-1)
     parser.add_argument('--resnet_layers', type=int, default=18)
     parser.add_argument('--ckpt_path', type=str, default=None, help='pretrained checkpoint path to load')
     parser.add_argument('--pt_path', type=str, default=None, help='pretrained weights path to load')

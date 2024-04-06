@@ -1,5 +1,5 @@
 pytorch-lightning==1.7.3
-matplotlib
+matplotlib~=3.6.2
 opencv-python~=4.6.0.66
 tqdm~=4.64.1
 imageio~=2.22.4
@@ -9,9 +9,9 @@ configargparse~=1.5.3
 kornia~=0.6.8
 jupyterlab
 tensorboardX~=2.5.1
-sklearn
+sklearn~=0.0.post1
 IPython
-seaborn
+seaborn~=0.12.1
 einops
 timm
 # charts
@@ -24,3 +24,11 @@ scikit-optimize==0.9.0
 gym==0.26.2
 stable-baselines3[extra]==2.0.0
 Shimmy==0.2.1
+
+numpy~=1.23.4
+torchvision~=0.13.1
+pillow~=9.2.0
+pandas~=1.5.2
+scikit-learn~=0.24.2
+
+dataclasses-json

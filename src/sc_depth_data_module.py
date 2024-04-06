@@ -21,8 +21,7 @@ class SCDepthDataModule(LightningDataModule):
         self.save_hyperparameters()
         self.dataset_name = hparams.dataset_name
         self.training_size = self.get_training_size(hparams.dataset_name)
-        self.load_pseudo_depth = True if (
-                hparams.model_version == 'v3') else False
+        self.load_pseudo_depth = True if ('v3' in hparams.model_version) else False
         self.selected_train_sample_indexes = selected_train_sample_indexes
         self.selected_val_sample_indexes = selected_val_sample_indexes
         self.selected_test_sample_indexes = selected_test_sample_indexes

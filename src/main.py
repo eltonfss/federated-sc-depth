@@ -8,7 +8,6 @@ import numpy as np
 from types import SimpleNamespace
 import torch
 import math
-import sys
 from tqdm import tqdm
 from pprint import pprint
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -16,6 +15,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from datetime import datetime
 from pytorch_lightning import Trainer
 
+from er_buffer import ExperienceReplayBuffer
+from federated_training_state_checkpoint import BackupFederatedTrainingStateCallback
+from er_buffer_init import initialize_er_buffer
+from sc_depth_module_v3_with_er import SCDepthModuleV3WithExperienceReplay
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
     average_weights_by_num_samples, average_weights_optimization_by_search, \
     load_weights_without_batchnorm, load_weights, \
@@ -23,6 +26,8 @@ from utils import set_seed, restore_federated_training_state, backup_federated_t
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
+
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 if __name__ == "__main__":
     config_args = get_configargs()
@@ -106,10 +111,20 @@ if __name__ == "__main__":
     batch_size = sc_depth_hparams.batch_size = sc_depth_hparams.fed_train_local_batch_size
     sc_depth_hparams.lr = sc_depth_hparams.fed_train_local_learn_rate
     sc_depth_hparams.epoch_size = sc_depth_hparams.fed_train_num_local_train_batches
+    dataset_name = sc_depth_hparams.dataset_name
+    dataset_dir = sc_depth_hparams.dataset_dir
+    replay_dataset_name = sc_depth_hparams.replay_dataset_name
+    replay_dataset_dir = sc_depth_hparams.replay_dataset_dir
+    assert replay_dataset_name and replay_dataset_dir and replay_dataset_name != sc_depth_hparams.dataset_name
     global_model = None
     global_model_round = None
+    global_er_buffer = None
+    global_er_buffer_state = None
     if config_args.model_version == 'v3':
         global_model = SCDepthModuleV3(sc_depth_hparams)
+    elif config_args.model_version == 'v3_with_er':
+        global_er_buffer = ExperienceReplayBuffer(sc_depth_hparams.er_buffer_size)
+        global_model = SCDepthModuleV3WithExperienceReplay(sc_depth_hparams, global_er_buffer)
     if config_args.pt_path:
         print(f"restoring trained model from {config_args.pt_path}")
         weights = torch.load(config_args.pt_path)
@@ -141,6 +156,27 @@ if __name__ == "__main__":
             print(f"WARNING: Could not load pre-trained global model weights from {round_model_dir}!"
                   f"Will proceed with default global model initialization.")
             global_model_round = None
+
+    # breakpoint()
+    saved_global_er_buffer = federated_training_state.get("global_er_buffer", None)
+    if global_er_buffer is not None:
+        buffered_datasets = [(replay_dataset_name, replay_dataset_dir)]
+        if saved_global_er_buffer and isinstance(saved_global_er_buffer, ExperienceReplayBuffer):
+            buffered_datasets.append((dataset_name, dataset_dir))
+            global_er_buffer_state = saved_global_er_buffer.get_buffer_state()
+        initialize_er_buffer(sc_depth_hparams, buffered_datasets, global_er_buffer, global_er_buffer_state)
+    federated_training_state['global_er_buffer'] = global_er_buffer
+    # breakpoint()
+
+    # breakpoint()
+    local_er_buffer_by_participant = federated_training_state.get("local_er_buffer_by_participant", {})
+    for participant, local_er_buffer in local_er_buffer_by_participant.items():
+        buffered_datasets = [(replay_dataset_name, replay_dataset_dir), (dataset_name, dataset_dir)]
+        local_er_buffer_state = local_er_buffer.get_buffer_state()
+        initialize_er_buffer(sc_depth_hparams, buffered_datasets, local_er_buffer, local_er_buffer_state)
+    federated_training_state['local_er_buffer_by_participant'] = local_er_buffer_by_participant
+    # breakpoint()
+
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
     previous_global_model = copy.deepcopy(global_model)
@@ -387,10 +423,15 @@ if __name__ == "__main__":
                                                          mode='min',
                                                          verbose=True,
                                                          save_top_k=3)
+            # breakpoint()
+            backup_federated_training_state_callback = BackupFederatedTrainingStateCallback(
+                model_save_dir, federated_training_state, log_every_n_steps*2
+            )
+            # breakpoint()
             global_trainer_config = dict(
                 accelerator=device,
                 log_every_n_steps=log_every_n_steps,
-                callbacks=[global_checkpoint_callback],
+                callbacks=[global_checkpoint_callback, backup_federated_training_state_callback],
                 logger=global_logger,
                 benchmark=True
             )
@@ -454,6 +495,16 @@ if __name__ == "__main__":
                     # persist federated training state (Federation Checkpoint)
                     backup_federated_training_state(model_save_dir, federated_training_state)
 
+                    # configure experience replay buffer
+                    # breakpoint()
+                    if isinstance(local_model, SCDepthModuleV3WithExperienceReplay):
+                        local_er_buffer = local_er_buffer_by_participant.get(participant_id, None)
+                        if local_er_buffer is None and global_er_buffer is not None:
+                            local_er_buffer = copy.deepcopy(global_er_buffer)
+                        local_model.set_er_buffer(local_er_buffer)
+                        local_er_buffer_by_participant[participant_id] = local_er_buffer
+                    # breakpoint()
+
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
                     n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / batch_size))
@@ -469,7 +520,7 @@ if __name__ == "__main__":
                         accelerator=device,
                         log_every_n_steps=log_every_n_steps,
                         num_sanity_val_steps=fed_train_num_local_sanity_val_steps,
-                        callbacks=[local_checkpoint_callback],
+                        callbacks=[local_checkpoint_callback, backup_federated_training_state_callback],
                         logger=local_logger,
                         benchmark=True
                     )

@@ -93,7 +93,7 @@ def photo_and_geometry_loss(tgt_img, ref_imgs, tgt_depth, ref_depths, intrinsics
     photo_loss = mean_on_mask(diff_img, valid_mask)
     geometry_loss = mean_on_mask(diff_depth, valid_mask)
 
-    if hparams.model_version == 'v3':
+    if 'v3' in hparams.model_version:
         # get dynamic mask for tgt image
         dynamic_mask = []
         for i in range(0, len(diff_depth_list), 2):
