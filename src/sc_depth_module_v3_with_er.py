@@ -23,8 +23,8 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
         # print(f'training_step called for {batch_idx=} batch={len(batch)}')
 
         # train with current batch and add it to buffer
-        super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
         self._apply_experience_replay(batch)
+        loss = super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
         self._er_buffer.add_batch_to_buffer(
             ExperienceReplayBatchInfo(
                 dataset_name=self._dataset_name,
@@ -33,35 +33,34 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
             )
         )
         self._batch_count += 1
+        return loss
 
     def _apply_experience_replay(self, batch):
         tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
         # replay batches from buffer
         # print(f'{self._batch_count=}, {self._er_frequency=}')
         if self._batch_count > 0 and self._batch_count % self._er_frequency == 0:
-            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+            secondary_device = torch.device("cpu")
 
             def adjust_dimensions(x: ExperienceReplayBatchInfo):
 
                 b_tgt_img, b_tgt_pseudo_depth, b_ref_imgs, b_intrinsics, b_scene_id = x.batch_data
 
                 # adjust to current device
-                b_tgt_img = b_tgt_img.to(device)
-                b_tgt_pseudo_depth = b_tgt_pseudo_depth.to(device)
-                b_ref_imgs = [br_ref_img.to(device) for br_ref_img in b_ref_imgs]
-                b_intrinsics = b_intrinsics.cpu()
+                b_tgt_img = b_tgt_img.to(secondary_device)
+                b_tgt_pseudo_depth = b_tgt_pseudo_depth.to(secondary_device)
+                b_ref_imgs = [br_ref_img.to(secondary_device) for br_ref_img in b_ref_imgs]
+                b_intrinsics = b_intrinsics.to(secondary_device)
 
                 # redimension height and width
                 shape_img = tgt_img.shape[2:]
-                b_tgt_img_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(tgt_img.shape).to(device,
-                                                                                                       dtype=torch.float)
+                b_tgt_img_rescaled = torch.tensor(()).new_zeros(tgt_img.shape).to(secondary_device, dtype=torch.float)
                 shape_depth = tgt_pseudo_depth.shape[2:]
                 b_tgt_pseudo_depth_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(
-                    tgt_pseudo_depth.shape).to(device, dtype=torch.float)
+                    tgt_pseudo_depth.shape).to(secondary_device, dtype=torch.float)
                 shape_ref_imgs = ref_imgs[0].shape[2:]
                 b_ref_imgs_rescaled = []
-                b_intrinsics_rescaled = torch.tensor((), dtype=torch.float64).new_zeros(intrinsics.shape).to(device,
-                                                                                                             dtype=torch.float)
+                b_intrinsics_rescaled = torch.tensor(()).new_zeros(intrinsics.shape).to(secondary_device, dtype=torch.float)
                 for i in range(b_tgt_img.shape[0]):
                     # print(f"reshaping img from {b_tgt_img[i].shape[1:]} to {shape_img}")
                     # print(f"reshaping depth from {b_tgt_pseudo_depth[i].shape[1:]} to {shape_depth}")
@@ -92,7 +91,7 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                         if len(b_ref_imgs_rescaled) <= k:
                             b_ref_imgs_rescaled.append(torch.tensor((), dtype=torch.float64).new_zeros(
                                 ref_imgs[0].shape
-                            ).to(device, dtype=torch.float))
+                            ).to(secondary_device, dtype=torch.float))
                         for j in range(len(b_ref_imgs_i[k])):
                             b_ref_imgs_rescaled[k][i][j] = to_tensor(ref_image_transform(to_pil(b_ref_imgs_i[k][j])))
                             assert b_ref_imgs_rescaled[k][i][j].shape == shape_ref_imgs
@@ -106,21 +105,31 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                     b_intrinsics_rescaled[0] *= w_factor
                     b_intrinsics_rescaled[1] *= h_factor
                     b_intrinsics_rescaled = torch.from_numpy(b_intrinsics_rescaled)
-                    b_intrinsics_rescaled = b_intrinsics_rescaled.to(device, dtype=torch.float)
+                    b_intrinsics_rescaled = b_intrinsics_rescaled.to(secondary_device, dtype=torch.float)
                     # print(f"rescaled intrinsics weight by {w_factor} and height by {h_factor}")
 
                 x.batch_data = (
-                    b_tgt_img_rescaled, b_tgt_pseudo_depth_rescaled, b_ref_imgs_rescaled, b_intrinsics_rescaled,
+                    b_tgt_img_rescaled,
+                    b_tgt_pseudo_depth_rescaled,
+                    b_ref_imgs_rescaled,
+                    b_intrinsics_rescaled,
                     b_scene_id
                 )
                 return x
 
             er_batches_info = self._er_buffer.get_batches_from_buffer(self._er_size, adjust_dimensions)
+            primary_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
             # print(f'{self._er_size=}, batches_info={len(er_batches_info)}')
             for batch_info in er_batches_info:
                 print(f"Replaying {batch_info.batch_idx=} from {batch_info.dataset_name=}")
                 # print(f"Batch Length={len(batch_info.batch_data)}")
                 # print(f"{batch_info.batch_data=}")
+                er_tgt_img, er_tgt_pseudo_depth, er_ref_imgs, er_intrinsics, er_scene_id = batch_info.batch_data
+                er_tgt_img = er_tgt_img.to(primary_device, dtype=torch.float)
+                er_tgt_pseudo_depth = er_tgt_pseudo_depth.to(primary_device, dtype=torch.float)
+                er_ref_imgs = [er_ref_img.to(primary_device, dtype=torch.float) for er_ref_img in er_ref_imgs]
+                er_intrinsics = er_intrinsics.to(primary_device, dtype=torch.float)
+                replay_batch = (er_tgt_img, er_tgt_pseudo_depth, er_ref_imgs, er_intrinsics, er_scene_id)
                 super(SCDepthModuleV3WithExperienceReplay, self).training_step(
-                    batch=batch_info.batch_data, batch_idx=batch_info.batch_idx
+                    batch=replay_batch, batch_idx=batch_info.batch_idx
                 )
