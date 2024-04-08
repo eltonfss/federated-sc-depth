@@ -80,7 +80,6 @@ class ExperienceReplayBufferReinitializer(LightningModule):
             if batch_info.dataset_name == dataset_name:
                 self._buffered_batches_global[batch_info.batch_idx] = (index, batch_info)
 
-        breakpoint()
         self._local_er_buffer_state_by_participant = local_er_buffer_state_by_participant
         self._buffered_batches_local_by_participant: Dict[str, Dict[int, Tuple[int, ExperienceReplayBatchInfo]]] = {}
         for participant_id, er_buffer_state in self._local_er_buffer_state_by_participant.items():
@@ -88,7 +87,6 @@ class ExperienceReplayBufferReinitializer(LightningModule):
             for index, batch_info in er_buffer_state.batches.items():
                 if batch_info.dataset_name == dataset_name:
                     buffered_batches[batch_info.batch_idx] = (index, batch_info)
-        breakpoint()
 
     def configure_optimizers(self):
         return None
