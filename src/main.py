@@ -159,23 +159,15 @@ if __name__ == "__main__":
 
     # breakpoint()
     saved_global_er_buffer = federated_training_state.get("global_er_buffer", None)
+    local_er_buffer_by_participant = federated_training_state.get("local_er_buffer_by_participant", {})
     if global_er_buffer is not None:
         buffered_datasets = [(replay_dataset_name, replay_dataset_dir)]
         if saved_global_er_buffer and isinstance(saved_global_er_buffer, ExperienceReplayBuffer):
             buffered_datasets.append((dataset_name, dataset_dir))
-            global_er_buffer_state = saved_global_er_buffer.get_buffer_state()
-        initialize_er_buffer(sc_depth_hparams, buffered_datasets, global_er_buffer, global_er_buffer_state)
+            global_er_buffer = saved_global_er_buffer
+        initialize_er_buffer(sc_depth_hparams, buffered_datasets, global_er_buffer, local_er_buffer_by_participant)
     federated_training_state['global_er_buffer'] = global_er_buffer
-    # breakpoint()
-
-    # breakpoint()
-    local_er_buffer_by_participant = federated_training_state.get("local_er_buffer_by_participant", {})
-    for participant, local_er_buffer in local_er_buffer_by_participant.items():
-        buffered_datasets = [(replay_dataset_name, replay_dataset_dir), (dataset_name, dataset_dir)]
-        local_er_buffer_state = local_er_buffer.get_buffer_state()
-        initialize_er_buffer(sc_depth_hparams, buffered_datasets, local_er_buffer, local_er_buffer_state)
     federated_training_state['local_er_buffer_by_participant'] = local_er_buffer_by_participant
-    # breakpoint()
 
     global_model = global_model.to(device)
     global_weights = global_model.state_dict()
