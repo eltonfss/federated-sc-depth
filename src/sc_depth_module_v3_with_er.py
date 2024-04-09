@@ -1,3 +1,5 @@
+from typing import List
+
 from er_buffer import ExperienceReplayBuffer, ExperienceReplayBatchInfo
 from sc_depth_module_v3 import SCDepthModuleV3
 from PIL import Image
@@ -23,22 +25,23 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
         # print(f'training_step called for {batch_idx=} batch={len(batch)}')
 
         # train with current batch and add it to buffer
-        self._apply_experience_replay(batch)
-        loss = super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
-        self._er_buffer.add_batch_to_buffer(
-            ExperienceReplayBatchInfo(
-                dataset_name=self._dataset_name,
-                batch_idx=batch_idx,
-                batch_data=batch
-            )
-        )
+        er_losses = self._compute_er_losses(batch)
+        current_loss = super(SCDepthModuleV3WithExperienceReplay, self).training_step(batch, batch_idx)
         self._batch_count += 1
-        return loss
 
-    def _apply_experience_replay(self, batch):
+        # compute mean loss
+        if current_loss is not None and isinstance(current_loss, torch.Tensor) and er_losses:
+            losses = [current_loss.item()]
+            losses.extend(er_losses)
+            mean_loss = np.mean(losses)
+            current_loss.data = torch.tensor(mean_loss, dtype=torch.float)
+        return current_loss
+
+    def _compute_er_losses(self, batch) -> List[float]:
         tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics, scene_id = batch
         # replay batches from buffer
         # print(f'{self._batch_count=}, {self._er_frequency=}')
+        losses = []
         if self._batch_count > 0 and self._batch_count % self._er_frequency == 0:
             secondary_device = torch.device("cpu")
 
@@ -121,7 +124,7 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
             primary_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
             # print(f'{self._er_size=}, batches_info={len(er_batches_info)}')
             for batch_info in er_batches_info:
-                print(f"Replaying {batch_info.batch_idx=} from {batch_info.dataset_name=}")
+                # print(f"Replaying {batch_info.batch_idx=} from {batch_info.dataset_name=}")
                 # print(f"Batch Length={len(batch_info.batch_data)}")
                 # print(f"{batch_info.batch_data=}")
                 er_tgt_img, er_tgt_pseudo_depth, er_ref_imgs, er_intrinsics, er_scene_id = batch_info.batch_data
@@ -130,6 +133,9 @@ class SCDepthModuleV3WithExperienceReplay(SCDepthModuleV3):
                 er_ref_imgs = [er_ref_img.to(primary_device, dtype=torch.float) for er_ref_img in er_ref_imgs]
                 er_intrinsics = er_intrinsics.to(primary_device, dtype=torch.float)
                 replay_batch = (er_tgt_img, er_tgt_pseudo_depth, er_ref_imgs, er_intrinsics, er_scene_id)
-                super(SCDepthModuleV3WithExperienceReplay, self).training_step(
+                loss = super(SCDepthModuleV3WithExperienceReplay, self).training_step(
                     batch=replay_batch, batch_idx=batch_info.batch_idx
                 )
+                if loss is not None and isinstance(loss, torch.Tensor):
+                    losses.append(loss.item())
+        return losses

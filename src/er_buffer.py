@@ -98,7 +98,7 @@ class ExperienceReplayBuffer:
         else:
             return False
 
-    def get_buffer_state(self) -> ExperienceReplayBufferState:
+    def get_buffer_state(self, with_batch_data: bool = False) -> ExperienceReplayBufferState:
         return ExperienceReplayBufferState(
             size=self._reservoir_size,
             experience=self._n_batches_seen,
@@ -106,7 +106,7 @@ class ExperienceReplayBuffer:
                 reservoir_index: ExperienceReplayBatchInfo(
                     dataset_name=batch_info.dataset_name,
                     batch_idx=batch_info.batch_idx,
-                    batch_data=None
+                    batch_data=batch_info.batch_data if with_batch_data else None
                 )
                 for reservoir_index, batch_info in self._batches_reservoir.items()
             }

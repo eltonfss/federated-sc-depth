@@ -157,15 +157,16 @@ if __name__ == "__main__":
                   f"Will proceed with default global model initialization.")
             global_model_round = None
 
-    # breakpoint()
     saved_global_er_buffer = federated_training_state.get("global_er_buffer", None)
     local_er_buffer_by_participant = federated_training_state.get("local_er_buffer_by_participant", {})
     if global_er_buffer is not None:
-        buffered_datasets = [(replay_dataset_name, replay_dataset_dir)]
+        buffered_datasets = [(replay_dataset_name, replay_dataset_dir, 'train')]
         if saved_global_er_buffer and isinstance(saved_global_er_buffer, ExperienceReplayBuffer):
-            buffered_datasets.append((dataset_name, dataset_dir))
+            # buffered_datasets.append((dataset_name, dataset_dir, 'train'))
             global_er_buffer = saved_global_er_buffer
         initialize_er_buffer(sc_depth_hparams, buffered_datasets, global_er_buffer, local_er_buffer_by_participant)
+        gc.collect()
+        torch.cuda.empty_cache()
     federated_training_state['global_er_buffer'] = global_er_buffer
     federated_training_state['local_er_buffer_by_participant'] = local_er_buffer_by_participant
 
@@ -415,11 +416,9 @@ if __name__ == "__main__":
                                                          mode='min',
                                                          verbose=True,
                                                          save_top_k=3)
-            # breakpoint()
             backup_federated_training_state_callback = BackupFederatedTrainingStateCallback(
                 model_save_dir, federated_training_state, log_every_n_steps*2
             )
-            # breakpoint()
             global_trainer_config = dict(
                 accelerator=device,
                 log_every_n_steps=log_every_n_steps,
@@ -488,14 +487,12 @@ if __name__ == "__main__":
                     backup_federated_training_state(model_save_dir, federated_training_state)
 
                     # configure experience replay buffer
-                    # breakpoint()
                     if isinstance(local_model, SCDepthModuleV3WithExperienceReplay):
                         local_er_buffer = local_er_buffer_by_participant.get(participant_id, None)
                         if local_er_buffer is None and global_er_buffer is not None:
                             local_er_buffer = copy.deepcopy(global_er_buffer)
                         local_model.set_er_buffer(local_er_buffer)
                         local_er_buffer_by_participant[participant_id] = local_er_buffer
-                    # breakpoint()
 
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
