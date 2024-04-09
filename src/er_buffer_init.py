@@ -20,6 +20,7 @@ def initialize_er_buffer(
         sc_depth_params = copy.deepcopy(hparams)
         sc_depth_params.dataset_name = dataset_name
         sc_depth_params.dataset_dir = dataset_dir
+        sc_depth_params.num_workers = 0
         data_module = SCDepthDataModule(sc_depth_params)
         data_module.setup(dataset_split)
         dataset_size = data_module.get_dataset_size(dataset_split)
@@ -115,7 +116,7 @@ class ExperienceReplayBufferReinitializer(LightningModule):
                 if batch_info.dataset_name == dataset_name:
                     buffered_batches[batch_info.batch_idx] = (index, batch_info)
 
-    def get_er_buffers_state(self):
+    def get_er_buffers_states(self):
         return self._global_er_buffer_state, self._local_er_buffer_state_by_participant
 
     def configure_optimizers(self):
