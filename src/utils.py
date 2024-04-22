@@ -224,7 +224,7 @@ def average_weights_optimization_by_search(
 
     # compute weight of weight combinations based on search strategy
     w_of_w_combinations = compute_weight_of_weight_combinations(
-        best_test_loss, best_weights_of_weights, global_data, global_model, trainer_config,
+        best_test_loss, best_weights_of_weights, global_data, global_model, trainer_config, replay_data,
         model_save_dir, local_model_ids, local_model_weight_list, random_seed, search_range_size, search_strategy
     )
 
@@ -253,8 +253,9 @@ def average_weights_optimization_by_search(
     return best_weights, best_weights_of_weights, standard_fed_avg_is_best
 
 
-def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,
-                                          global_trainer_config, model_save_dir, local_model_ids,
+def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights,
+                                          global_data, global_model, global_trainer_config, replay_data,
+                                          model_save_dir, local_model_ids,
                                           local_model_weight_list, random_seed,
                                           search_range_size, search_strategy):
     w_of_w_combos = []
@@ -269,7 +270,8 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
         search_range_size=search_range_size,
         global_data=global_data,
         global_model=global_model,
-        global_trainer_config=global_trainer_config
+        global_trainer_config=global_trainer_config,
+        replay_data=replay_data
     )
     common_args_unconstrained = dict(
         w_of_w_bounds=compute_unconstrained_w_of_w_bounds(local_model_weight_list),
@@ -315,12 +317,12 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
 
 def compute_w_of_w_combinations_with_bayesian_regression_grid(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
+        global_data, global_model, global_trainer_config, replay_data, w_of_w_bounds, **kwargs
 ):
     print("Running Bayesian Optimization")
     best_w_of_w_combos, best_losses, w_of_w_combos, losses = compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds
+        global_data, global_model, global_trainer_config, replay_data, w_of_w_bounds
     )
 
     print("Fitting Regression Model and Estimating Optimal Weights with Grid Search")
@@ -494,7 +496,7 @@ def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search
 
 def compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
+        global_data, global_model, trainer_config, replay_data, w_of_w_bounds, **kwargs
 ):
     best_w_of_w_combinations = []
     best_test_losses = []
@@ -504,8 +506,9 @@ def compute_w_of_w_combinations_with_bayesian_optimization(
         try:
             w_of_w = normalize_weights_of_weights(w_of_w)
             avg_weights_bo = average_weights_with_weights_of_weights(local_model_weight_list, w_of_w)
-            # TODO pass current and replay datasets for evaluation
-            test_loss = evaluate_averaged_weights(avg_weights_bo, global_data, global_model, global_trainer_config)
+            test_loss = evaluate_averaged_weights(
+                avg_weights_bo, global_data, global_model, trainer_config, replay_data
+            )
         except:
             test_loss = PROXY_FOR_INFINITY
         return test_loss if test_loss is not None else PROXY_FOR_INFINITY
