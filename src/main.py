@@ -182,9 +182,14 @@ if __name__ == "__main__":
 
     # distribute training data
     print("Setting Up Training Dataset ...")
-    global_data = SCDepthDataModule(sc_depth_hparams)
+    global_data = SCDepthDataModule(sc_depth_hparams, dataset_name, dataset_dir)
     global_data.setup()
     print("Training Dataset Setup Completed!")
+
+    print("Setting Up Replay Dataset ...")
+    global_replay_data = SCDepthDataModule(sc_depth_hparams, replay_dataset_name, replay_dataset_dir)
+    global_replay_data.setup()
+    print("Replay Dataset Setup Completed!")
 
     sample_train_indexes_by_participant = federated_training_state.get('sample_train_indexes_by_participant', {})
     sample_val_indexes_by_participant = federated_training_state.get('sample_val_indexes_by_participant', {})
@@ -446,6 +451,8 @@ if __name__ == "__main__":
                     local_sample_val_indexes = sample_val_indexes_by_participant[str(participant_id)]
                     local_sample_test_indexes = sample_test_indexes_by_participant[str(participant_id)]
                     local_data = SCDepthDataModule(sc_depth_hparams,
+                                                   dataset_name=dataset_name,
+                                                   dataset_dir=dataset_dir,
                                                    selected_train_sample_indexes=local_sample_train_indexes,
                                                    selected_val_sample_indexes=local_sample_val_indexes,
                                                    selected_test_sample_indexes=local_sample_test_indexes)
@@ -624,11 +631,12 @@ if __name__ == "__main__":
                             local_model_weight_list=ordered_local_weights,
                             num_samples_for_each_local_model=ordered_num_train_samples,
                             global_model=global_model, global_data=global_data,
-                            global_trainer_config=global_trainer_config,
+                            trainer_config=global_trainer_config,
                             search_range_size=fed_train_average_search_range,
                             search_strategy=fed_train_average_search_strategy,
                             random_seed=random_seed,
-                            aggregation_optimization_info=aggregation_optimization_info
+                            aggregation_optimization_info=aggregation_optimization_info,
+                            replay_data=global_replay_data
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(

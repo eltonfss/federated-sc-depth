@@ -21,7 +21,7 @@ def initialize_er_buffer(
         sc_depth_params.dataset_name = dataset_name
         sc_depth_params.dataset_dir = dataset_dir
         sc_depth_params.num_workers = 0
-        data_module = SCDepthDataModule(sc_depth_params)
+        data_module = SCDepthDataModule(sc_depth_params, dataset_name, dataset_dir)
         data_module.setup(dataset_split)
         dataset_size = data_module.get_dataset_size(dataset_split)
         sc_depth_params.epoch_size = int(dataset_size / sc_depth_params.batch_size)

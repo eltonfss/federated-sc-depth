@@ -187,8 +187,9 @@ def average_weights_optimization_by_search(
         local_model_ids,
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
-        global_trainer_config, search_range_size,
-        search_strategy, random_seed, aggregation_optimization_info
+        trainer_config, search_range_size,
+        search_strategy, random_seed, aggregation_optimization_info,
+        replay_data=None
 ):
     """
     search_strategy:   'GridSearch',
@@ -213,7 +214,7 @@ def average_weights_optimization_by_search(
     best_weights, best_weights_of_weights = average_weights_by_num_samples(
         local_model_weight_list, num_samples_for_each_local_model
     )
-    best_test_loss = evaluate_averaged_weights(best_weights, global_data, global_model, global_trainer_config)
+    best_test_loss = evaluate_averaged_weights(best_weights, global_data, global_model, trainer_config, replay_data)
     standard_fed_avg_is_best = True
     aggregation_optimization_info['standard_fed_avg_weights_of_weights'] = best_weights_of_weights
     aggregation_optimization_info['standard_fed_avg_loss'] = best_test_loss
@@ -223,7 +224,7 @@ def average_weights_optimization_by_search(
 
     # compute weight of weight combinations based on search strategy
     w_of_w_combinations = compute_weight_of_weight_combinations(
-        best_test_loss, best_weights_of_weights, global_data, global_model, global_trainer_config,
+        best_test_loss, best_weights_of_weights, global_data, global_model, trainer_config,
         model_save_dir, local_model_ids, local_model_weight_list, random_seed, search_range_size, search_strategy
     )
 
@@ -231,7 +232,7 @@ def average_weights_optimization_by_search(
     for weights_of_weights in w_of_w_combinations:
         avg_weights = average_weights_with_weights_of_weights(local_model_weight_list, weights_of_weights)
         print("Evaluating global model loss with Averaging Weights:", weights_of_weights)
-        test_epoch_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config)
+        test_epoch_loss = evaluate_averaged_weights(avg_weights, global_data, global_model, trainer_config, replay_data)
         # Check if this combination of weights resulted in a lower test loss
         if test_epoch_loss is not None and test_epoch_loss < best_test_loss:
             best_test_loss = test_epoch_loss
@@ -503,6 +504,7 @@ def compute_w_of_w_combinations_with_bayesian_optimization(
         try:
             w_of_w = normalize_weights_of_weights(w_of_w)
             avg_weights_bo = average_weights_with_weights_of_weights(local_model_weight_list, w_of_w)
+            # TODO pass current and replay datasets for evaluation
             test_loss = evaluate_averaged_weights(avg_weights_bo, global_data, global_model, global_trainer_config)
         except:
             test_loss = PROXY_FOR_INFINITY
@@ -556,11 +558,23 @@ def normalize_weights_of_weights(weights_of_weights):
     return weights_of_weights
 
 
-def evaluate_averaged_weights(avg_weights, global_data, global_model, global_trainer_config):
+def evaluate_averaged_weights(
+        avg_weights, global_data, global_model, global_trainer_config,
+        global_replay_data=None, replay_loss_weight=0.5
+):
     # Update the global model's weights with the averaged weights
     global_model.load_state_dict(avg_weights)
     # Test the global model and compute the test loss
     global_trainer = Trainer(**global_trainer_config)
+    test_epoch_loss = test_global_model(global_data, global_model, global_trainer)
+    # merge current loss with loss from experience replay
+    if global_replay_data:
+        test_epoch_loss_replay = test_global_model(global_replay_data, global_model, global_trainer)
+        test_epoch_loss = ((1 - replay_loss_weight) * test_epoch_loss) + (replay_loss_weight * test_epoch_loss_replay)
+    return test_epoch_loss
+
+
+def test_global_model(global_data, global_model, global_trainer):
     test_config = dict(model=global_model, datamodule=global_data)
     global_trainer.test(**test_config)
     test_epoch_losses = global_model.test_epoch_losses

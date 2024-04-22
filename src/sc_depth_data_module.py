@@ -10,6 +10,8 @@ from datasets.testset import TestSet
 class SCDepthDataModule(LightningDataModule):
 
     def __init__(self, hparams,
+                 dataset_name,
+                 dataset_dir,
                  selected_train_sample_indexes=None,
                  selected_val_sample_indexes=None,
                  selected_test_sample_indexes=None,
@@ -19,7 +21,8 @@ class SCDepthDataModule(LightningDataModule):
         self.val_dataset = None
         self.test_dataset = None
         self.save_hyperparameters()
-        self.dataset_name = hparams.dataset_name
+        self.dataset_name = dataset_name
+        self.dataset_dir = dataset_dir
         self.training_size = self.get_training_size(hparams.dataset_name)
         self.load_pseudo_depth = True if ('v3' in hparams.model_version) else False
         self.selected_train_sample_indexes = selected_train_sample_indexes
@@ -51,7 +54,7 @@ class SCDepthDataModule(LightningDataModule):
     def setup(self, stage=None):
 
         self.train_dataset = TrainSet(
-            self.hparams.hparams.dataset_dir,
+            self.dataset_dir,
             transform=self.train_transform,
             sequence_length=self.hparams.hparams.sequence_length,
             skip_frames=self.hparams.hparams.skip_frames,
@@ -63,14 +66,14 @@ class SCDepthDataModule(LightningDataModule):
 
         if self.hparams.hparams.val_mode == 'depth':
             self.test_dataset = self.val_dataset = ValidationSet(
-                self.hparams.hparams.dataset_dir,
+                self.dataset_dir,
                 transform=self.valid_transform,
                 dataset=self.hparams.hparams.dataset_name,
                 selected_sample_indexes=self.selected_val_sample_indexes
             )
             # FIXME
             # self.test_dataset = TestSet(
-            #    self.hparams.hparams.dataset_dir,
+            #    self.dataset_dir,
             #    transform=self.test_transform,
             #    dataset=self.hparams.hparams.dataset_name,
             #    selected_sample_indexes=self.selected_test_sample_indexes
@@ -79,7 +82,7 @@ class SCDepthDataModule(LightningDataModule):
         elif self.hparams.hparams.val_mode == 'photo':
             print("photo validation mode")
             self.test_dataset = self.val_dataset = TrainSet(
-                self.hparams.hparams.dataset_dir,
+                self.dataset_dir,
                 transform=self.valid_transform,
                 sequence_length=self.hparams.hparams.sequence_length,
                 skip_frames=self.hparams.hparams.skip_frames,
@@ -88,7 +91,7 @@ class SCDepthDataModule(LightningDataModule):
                 selected_sample_indexes=self.selected_val_sample_indexes
             )
             # self.test_dataset = TrainSet(
-            #    self.hparams.hparams.dataset_dir,
+            #    self.dataset_dir,
             #    transform=self.test_transform,
             #    sequence_length=self.hparams.hparams.sequence_length,
             #    use_frame_index=self.hparams.hparams.use_frame_index,
