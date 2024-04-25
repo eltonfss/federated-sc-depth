@@ -7,12 +7,14 @@ fi
 
 ./run.sh >> "$1"
 
+sleep_interval=10
 while true
 do
     if ! pgrep -f "run.sh" > /dev/null
     then
-        echo "run.sh is stopped. Restarting in 10 seconds ..."
-        sleep 10
+        echo "run.sh is stopped. Restarting in $sleep_interval seconds ..."
+        sleep $sleep_interval
+        sleep_interval=$((sleep_interval+sleep_interval))
         ./run.sh >> "$1"
     else
       sleep 10
