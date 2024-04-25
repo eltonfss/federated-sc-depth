@@ -496,7 +496,7 @@ def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search
 
 def compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, trainer_config, replay_data, w_of_w_bounds, **kwargs
+        global_data, global_model, global_trainer_config, replay_data, w_of_w_bounds, **kwargs
 ):
     best_w_of_w_combinations = []
     best_test_losses = []
@@ -507,7 +507,7 @@ def compute_w_of_w_combinations_with_bayesian_optimization(
             w_of_w = normalize_weights_of_weights(w_of_w)
             avg_weights_bo = average_weights_with_weights_of_weights(local_model_weight_list, w_of_w)
             test_loss = evaluate_averaged_weights(
-                avg_weights_bo, global_data, global_model, trainer_config, replay_data
+                avg_weights_bo, global_data, global_model, global_trainer_config, replay_data
             )
         except:
             test_loss = PROXY_FOR_INFINITY
@@ -562,8 +562,7 @@ def normalize_weights_of_weights(weights_of_weights):
 
 
 def evaluate_averaged_weights(
-        avg_weights, global_data, global_model, global_trainer_config,
-        global_replay_data=None, replay_loss_weight=0.5
+        avg_weights, global_data, global_model, global_trainer_config, global_replay_data=None
 ):
     # Update the global model's weights with the averaged weights
     global_model.load_state_dict(avg_weights)
@@ -572,13 +571,24 @@ def evaluate_averaged_weights(
     test_epoch_loss = test_global_model(global_data, global_model, global_trainer)
     # merge current loss with loss from experience replay
     if global_replay_data:
-        test_epoch_loss_replay = test_global_model(global_replay_data, global_model, global_trainer)
-        test_epoch_loss = ((1 - replay_loss_weight) * test_epoch_loss) + (replay_loss_weight * test_epoch_loss_replay)
+        test_epoch_loss = update_test_loss_with_replay(
+            global_model, global_replay_data, global_trainer, test_epoch_loss
+        )
     return test_epoch_loss
 
 
-def test_global_model(global_data, global_model, global_trainer):
+def update_test_loss_with_replay(
+        global_model, global_replay_data, global_trainer, test_epoch_loss, replay_loss_weight=0.5
+):
+    test_epoch_loss_replay = test_global_model(global_replay_data, global_model, global_trainer)
+    test_epoch_loss = ((1 - replay_loss_weight) * test_epoch_loss) + (replay_loss_weight * test_epoch_loss_replay)
+    return test_epoch_loss
+
+
+def test_global_model(global_data, global_model, global_trainer, global_checkpoint_path=None):
     test_config = dict(model=global_model, datamodule=global_data)
+    if global_checkpoint_path and os.path.exists(global_checkpoint_path):
+        test_config.update(dict(ckpt_path=global_checkpoint_path))
     global_trainer.test(**test_config)
     test_epoch_losses = global_model.test_epoch_losses
     test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None

@@ -22,7 +22,7 @@ from sc_depth_module_v3_with_er import SCDepthModuleV3WithExperienceReplay
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
     average_weights_by_num_samples, average_weights_optimization_by_search, \
     load_weights_without_batchnorm, load_weights, \
-    compute_iid_sample_partitions, mkdir_if_missing
+    compute_iid_sample_partitions, mkdir_if_missing, test_global_model, update_test_loss_with_replay
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
@@ -115,7 +115,8 @@ if __name__ == "__main__":
     dataset_dir = sc_depth_hparams.dataset_dir
     replay_dataset_name = sc_depth_hparams.replay_dataset_name
     replay_dataset_dir = sc_depth_hparams.replay_dataset_dir
-    assert replay_dataset_name and replay_dataset_dir and replay_dataset_name != sc_depth_hparams.dataset_name
+    if replay_dataset_name and replay_dataset_dir:
+        assert replay_dataset_name != sc_depth_hparams.dataset_name
     global_model = None
     global_model_round = None
     global_er_buffer = None
@@ -186,10 +187,12 @@ if __name__ == "__main__":
     global_data.setup()
     print("Training Dataset Setup Completed!")
 
-    print("Setting Up Replay Dataset ...")
-    global_replay_data = SCDepthDataModule(sc_depth_hparams, replay_dataset_name, replay_dataset_dir)
-    global_replay_data.setup()
-    print("Replay Dataset Setup Completed!")
+    global_replay_data = None
+    if replay_dataset_name and replay_dataset_dir:
+        print("Setting Up Replay Dataset ...")
+        global_replay_data = SCDepthDataModule(sc_depth_hparams, replay_dataset_name, replay_dataset_dir)
+        global_replay_data.setup()
+        print("Replay Dataset Setup Completed!")
 
     sample_train_indexes_by_participant = federated_training_state.get('sample_train_indexes_by_participant', {})
     sample_val_indexes_by_participant = federated_training_state.get('sample_val_indexes_by_participant', {})
@@ -655,14 +658,20 @@ if __name__ == "__main__":
 
             print("Testing Global Model after Update...")
             global_trainer = Trainer(**global_trainer_config)
-            test_config = dict(model=global_model, datamodule=global_data)
-            if skip_local_updates and os.path.exists(global_checkpoint_path):
-                test_config.update(dict(ckpt_path=global_checkpoint_path))
-            global_trainer.test(**test_config)
+            test_epoch_loss = None
+            if skip_local_updates:
+                test_epoch_loss = test_global_model(global_data, global_model, global_trainer, global_checkpoint_path)
+            else:
+                test_epoch_loss = test_global_model(global_data, global_model, global_trainer)
+            if global_replay_data:
+                test_epoch_loss = update_test_loss_with_replay(
+                    global_model, global_replay_data, global_trainer, test_epoch_loss
+                )
             if global_trainer.interrupted:
                 raise KeyboardInterrupt("Global Update Interrupted!")
-            test_epoch_losses = global_model.test_epoch_losses
-            test_epoch_loss = test_epoch_losses[-1] if len(test_epoch_losses) > 0 else None
+            if test_epoch_loss is None:
+                print("Skipping Global Update since Test Loss is Invalid!")
+                continue
             aggregation_optimization_info['loss_after_aggregation'] = test_epoch_loss
             if int(training_round) > 0 and fed_train_skip_bad_rounds > 0:
                 aggregation_optimization_info['loss_worse_than_previous_round'] = False
