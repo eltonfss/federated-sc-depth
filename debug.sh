@@ -23,12 +23,11 @@ python src/main.py --config="/home/eltons-pc/Configurations/v3/kitti_raw.txt" \
 --fed_train_by_drive_redistribute_remaining=1 \
 --gpu=0 \
 --fed_train_skip_bad_rounds=1 \
---fed_train_average_search_range=6 \
+--fed_train_average_search_range=1 \
 --fed_train_num_local_train_batches=20 \
 --fed_train_num_local_val_batches=10 \
 --fed_train_average_search_strategy="BayesianOptimization" \
 --fed_train_state_backup_dir="/home/eltons-pc/Logs/federated-sc-depth" \
 --pt_path="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
-#\
-#--fed_train_state_restore_dir="/home/eltons-pc/Logs/federated-sc-depth/06_04_2024_00:09:18/"
+#--fed_train_state_restore_dir="/home/eltons-pc/Logs/federated-sc-depth/23_04_2024_13:41:45"
 
