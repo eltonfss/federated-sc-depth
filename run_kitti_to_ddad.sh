@@ -3,6 +3,8 @@ echo "PYTORCH_CUDA_ALLOC_CONF=$PYTORCH_CUDA_ALLOC_CONF"
 export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
 
+MODEL_VERSION="v3"
+
 # KITTI
 #CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
 #DATASET_DIR="/home/eltons-pc/Datasets/kitti"
@@ -14,7 +16,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 #SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/13_03_2024_22:30:44"
+#RESTORE_DIR="$OUTPUT_DIR/13_03_2024_22:30:44"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -26,8 +28,8 @@ DISTRIBUTE_DATASET_BY_DRIVE_REDISTRIBUTE_REMAINING=1
 NUM_ROUNDS=36
 NUM_PARTICIPANTS=12
 NUM_WORKERS=8
-#FED_TRAIN_SKIP_BAD_ROUNDS=1 #BOFedSCDepth
-FED_TRAIN_SKIP_BAD_ROUNDS=0 #FedSCDepth
+FED_TRAIN_SKIP_BAD_ROUNDS=1 #BOFedSCDepth
+#FED_TRAIN_SKIP_BAD_ROUNDS=0 #FedSCDepth
 
 # LOCAL EPOCHS
 #FED_TRAIN_NUM_EPOCHS=1
@@ -45,6 +47,14 @@ FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
 #FED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
 FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
 
+# EXPERIENCE REPLAY BUFFER
+#MODEL_VERSION="v3_with_er"
+REPLAY_DATASET_DIR="/home/eltons-pc/Datasets/kitti"
+REPLAY_DATASET_NAME=kitti
+ER_BUFFER_SIZE=200
+ER_SIZE=1
+ER_FREQUENCY=1
+
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
 --num_workers=$NUM_WORKERS --fed_train_participant_order=$PARTICIPANT_SORTING \
@@ -57,5 +67,11 @@ python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_n
 --fed_train_average_search_strategy=$FED_TRAIN_AVG_SEARCH_STRATEGY \
 --fed_train_average_search_range=$FED_TRAIN_AVG_SEARCH_RANGE \
 --fed_train_state_restore_dir=$RESTORE_DIR \
---pt_path=$SOURCE_MODEL_PATH
+--pt_path=$SOURCE_MODEL_PATH \
+--model_version=$MODEL_VERSION \
+--replay_dataset_dir=$REPLAY_DATASET_DIR \
+--replay_dataset_name=$REPLAY_DATASET_NAME \
+--er_buffer_size=$ER_BUFFER_SIZE \
+--er_size=$ER_SIZE \
+--er_frequency=$ER_FREQUENCY \
 
