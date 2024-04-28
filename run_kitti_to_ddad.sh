@@ -16,7 +16,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 #SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-#RESTORE_DIR="$OUTPUT_DIR/13_03_2024_22:30:44"
+RESTORE_DIR="$OUTPUT_DIR/27_04_2024_02:45:04"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
