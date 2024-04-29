@@ -15,6 +15,8 @@ class SCDepthDataModule(LightningDataModule):
                  selected_train_sample_indexes=None,
                  selected_val_sample_indexes=None,
                  selected_test_sample_indexes=None,
+                 train_with_val_dataset=False,
+                 epoch_size=0
                  ):
         super().__init__()
         self.train_dataset = None
@@ -28,6 +30,8 @@ class SCDepthDataModule(LightningDataModule):
         self.selected_train_sample_indexes = selected_train_sample_indexes
         self.selected_val_sample_indexes = selected_val_sample_indexes
         self.selected_test_sample_indexes = selected_test_sample_indexes
+        self.train_with_val_dataset = train_with_val_dataset
+        self.epoch_size = epoch_size
 
         # data loader
         self.train_transform = custom_transforms.Compose([
@@ -61,7 +65,8 @@ class SCDepthDataModule(LightningDataModule):
             use_frame_index=self.hparams.hparams.use_frame_index,
             with_pseudo_depth=self.load_pseudo_depth,
             selected_sample_indexes=self.selected_train_sample_indexes,
-            dataset=self.dataset_name
+            dataset=self.dataset_name,
+            scene_list_file_name='val.txt' if self.train_with_val_dataset else 'train.txt'
         )
 
         if self.hparams.hparams.val_mode == 'depth':
@@ -111,8 +116,9 @@ class SCDepthDataModule(LightningDataModule):
     def train_dataloader(self):
         print("train num_workers", self.hparams.hparams.num_workers)
         random_sampler_config = dict(data_source=self.train_dataset, replacement=True)
-        if self.hparams.hparams.epoch_size > 0:
-            random_sampler_config['num_samples'] = self.hparams.hparams.batch_size * self.hparams.hparams.epoch_size
+        print("train epoch size", self.epoch_size)
+        if self.epoch_size > 0:
+            random_sampler_config['num_samples'] = self.hparams.hparams.batch_size * self.epoch_size
         else:
             random_sampler_config['num_samples'] = len(self.train_dataset)
         print("Random Sampler Config:", random_sampler_config)

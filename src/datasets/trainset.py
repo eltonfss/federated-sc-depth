@@ -46,12 +46,13 @@ class TrainSet(DataSet):
                  dataset='kitti',
                  use_frame_index=False,
                  with_pseudo_depth=False,
-                 selected_sample_indexes=None):
+                 selected_sample_indexes=None,
+                 scene_list_file_name='train.txt'):
         super(DataSet, self).__init__()
         np.random.seed(0)
         random.seed(0)
         self.root = Path(root)/'training'
-        scene_list_path = self.root/'train.txt'
+        scene_list_path = self.root/scene_list_file_name
         self.scenes = [self.root/folder[:-1]
                        for folder in open(scene_list_path)]
         self.transform = transform

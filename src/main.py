@@ -79,6 +79,7 @@ if __name__ == "__main__":
     fed_train_num_local_epochs = config_args.fed_train_num_local_epochs
     fed_train_num_local_train_batches = config_args.fed_train_num_local_train_batches
     fed_train_num_local_val_batches = config_args.fed_train_num_local_val_batches
+    fed_train_num_global_retrain_epochs = config_args.fed_train_num_global_retrain_epochs
     log_every_n_steps = config_args.log_every_n_steps
     fed_train_num_participants_per_round = max(
         math.ceil(fed_train_frac_participants_per_round * fed_train_num_participants), 1
@@ -115,6 +116,7 @@ if __name__ == "__main__":
     dataset_dir = sc_depth_hparams.dataset_dir
     replay_dataset_name = sc_depth_hparams.replay_dataset_name
     replay_dataset_dir = sc_depth_hparams.replay_dataset_dir
+    global_replay_mode = sc_depth_hparams.global_replay_mode
     if replay_dataset_name and replay_dataset_dir:
         assert replay_dataset_name != sc_depth_hparams.dataset_name
     global_model = None
@@ -183,20 +185,24 @@ if __name__ == "__main__":
 
     # distribute training data
     print("Setting Up Training Dataset ...")
-    global_data = SCDepthDataModule(sc_depth_hparams, dataset_name, dataset_dir)
+    global_data = SCDepthDataModule(sc_depth_hparams, dataset_name, dataset_dir, epoch_size=sc_depth_hparams.epoch_size)
     global_data.setup()
     print("Training Dataset Setup Completed!")
 
     global_replay_data = None
     if replay_dataset_name and replay_dataset_dir:
         print("Setting Up Replay Dataset ...")
-        global_replay_data = SCDepthDataModule(sc_depth_hparams, replay_dataset_name, replay_dataset_dir)
+        global_replay_data = SCDepthDataModule(
+            sc_depth_hparams, replay_dataset_name, replay_dataset_dir, train_with_val_dataset=True
+        )
         global_replay_data.setup()
         print("Replay Dataset Setup Completed!")
 
     sample_train_indexes_by_participant = federated_training_state.get('sample_train_indexes_by_participant', {})
     sample_val_indexes_by_participant = federated_training_state.get('sample_val_indexes_by_participant', {})
     sample_test_indexes_by_participant = federated_training_state.get('sample_test_indexes_by_participant', {})
+
+    n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / batch_size))
 
     if not restoring_federation_state:
         print("Computing Dataset distribution across participants ...")
@@ -458,7 +464,8 @@ if __name__ == "__main__":
                                                    dataset_dir=dataset_dir,
                                                    selected_train_sample_indexes=local_sample_train_indexes,
                                                    selected_val_sample_indexes=local_sample_val_indexes,
-                                                   selected_test_sample_indexes=local_sample_test_indexes)
+                                                   selected_test_sample_indexes=local_sample_test_indexes,
+                                                   epoch_size=sc_depth_hparams.epoch_size)
 
                     # prepare local model for update
                     local_model = copy.deepcopy(global_model)
@@ -506,7 +513,6 @@ if __name__ == "__main__":
 
                     # configure logger for local training
                     local_logger = TensorBoardLogger(save_dir=round_model_dir, name=participant_dir, version=0)
-                    n_train_steps_to_save = int(max(25, fed_train_num_local_train_batches / batch_size))
                     local_checkpoint_callback = ModelCheckpoint(dirpath=participant_model_dir,
                                                                 save_last=True,
                                                                 save_weights_only=False,
@@ -639,7 +645,7 @@ if __name__ == "__main__":
                             search_strategy=fed_train_average_search_strategy,
                             random_seed=random_seed,
                             aggregation_optimization_info=aggregation_optimization_info,
-                            replay_data=global_replay_data
+                            replay_data=global_replay_data if global_replay_mode == 'combined_loss' else None
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(
@@ -656,6 +662,46 @@ if __name__ == "__main__":
                 restoring_federation_state = False
                 global_model_round = None
 
+            if global_replay_mode == 'retrain' and global_replay_data:
+                print("Post-Training Global Model with Shared Validation Set from Replay Dataset (ER) ... ")
+                global_retrain_checkpoint_callback = ModelCheckpoint(
+                    dirpath=round_model_dir,
+                    save_last=True,
+                    save_weights_only=False,
+                    every_n_train_steps=n_train_steps_to_save,
+                    save_on_train_epoch_end=True,
+                    verbose=True
+                )
+                global_retrainer_config = dict(
+                    accelerator=device,
+                    log_every_n_steps=log_every_n_steps,
+                    num_sanity_val_steps=0,
+                    callbacks=[global_retrain_checkpoint_callback, backup_federated_training_state_callback],
+                    logger=global_logger,
+                    benchmark=True
+                )
+                if fed_train_num_global_retrain_epochs > 0:
+                    global_retrainer_config['max_epochs'] = fed_train_num_global_retrain_epochs
+                replay_dataset_size = global_replay_data.get_dataset_size('train')
+                global_retrainer_config['limit_train_batches'] = math.floor(replay_dataset_size / batch_size)
+                global_retrainer_config['limit_val_batches'] = 0
+                print("Global ReTrainer Config", global_retrainer_config)
+                global_retrainer = Trainer(**global_retrainer_config)
+                refit_config = dict(model=global_model, datamodule=global_replay_data)
+                if os.path.exists(global_checkpoint_path):
+                    refit_config.update(dict(ckpt_path=global_checkpoint_path))
+                try:
+                    global_retrainer.fit(**refit_config)
+                except RuntimeError as exception:
+                    if "out of memory" in str(exception):
+                        print(torch.cuda.list_gpu_processes())
+                        gc.collect()
+                        torch.cuda.empty_cache()
+                    raise exception
+                if global_retrainer.interrupted:
+                    raise KeyboardInterrupt("Global ReTrain Interrupted")
+                print("Post-Training Global Model with Shared Validation Set from Replay Dataset (ER) Completed !")
+
             print("Testing Global Model after Update...")
             global_trainer = Trainer(**global_trainer_config)
             test_epoch_loss = None
@@ -663,7 +709,7 @@ if __name__ == "__main__":
                 test_epoch_loss = test_global_model(global_data, global_model, global_trainer, global_checkpoint_path)
             else:
                 test_epoch_loss = test_global_model(global_data, global_model, global_trainer)
-            if global_replay_data:
+            if global_replay_data and global_replay_mode == 'combined_loss':
                 test_epoch_loss = update_test_loss_with_replay(
                     global_model, global_replay_data, global_trainer, test_epoch_loss
                 )

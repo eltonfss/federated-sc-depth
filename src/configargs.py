@@ -13,6 +13,8 @@ def get_configargs():
     parser.add_argument('--dataset_name', type=str, default='kitti', choices=['kitti', 'nyu', 'ddad', 'bonn', 'tum'])
     parser.add_argument('--replay_dataset_dir', type=str, default="")
     parser.add_argument('--replay_dataset_name', type=str, default="", choices=['kitti', 'nyu', 'ddad', 'bonn', 'tum'])
+    parser.add_argument('--global_replay_mode', type=str, default="none", choices=['none', 'combined_loss', 'retrain'])
+    parser.add_argument('--fed_train_num_global_retrain_epochs', type=int, default=1)
     parser.add_argument('--sequence_length', type=int, default=3, help='number of images for training')
     parser.add_argument('--skip_frames', type=int, default=1, help='jump sampling from video')
     parser.add_argument('--use_frame_index', action='store_true', help='filter out static-camera frames in video')
