@@ -16,7 +16,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/kitti"
 SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/28_04_2024_23:12:02"
+#RESTORE_DIR="$OUTPUT_DIR/02_05_2024_22:52:08"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 PARTICIPANT_SORTING="sequential" #IID
@@ -39,14 +39,14 @@ FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
 #FRAC_PARTICIPANTS_PER_ROUND=0.5 # 1/2
 #FRAC_PARTICIPANTS_PER_ROUND=1 # 1/1
 
-FED_TRAIN_SKIP_BAD_ROUNDS=0 #FedSCDepth
-#FED_TRAIN_SKIP_BAD_ROUNDS=1 #BOFedSCDepth
+#FED_TRAIN_SKIP_BAD_ROUNDS=0 #FedSCDepth
+FED_TRAIN_SKIP_BAD_ROUNDS=1 #BOFedSCDepth
 
-FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
-#FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
+#FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
+FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth
 
-FED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
-#FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
+#FED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
+FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
 
 # EXPERIENCE REPLAY BUFFER
 #MODEL_VERSION="v3_with_er"
@@ -55,7 +55,7 @@ REPLAY_DATASET_NAME=ddad
 ER_BUFFER_SIZE=200
 ER_SIZE=1
 ER_FREQUENCY=1
-ER_MODE='retrain' # none, combined_loss, retrain
+ER_MODE='combined_loss_with_retrain' # none, combined_loss, retrain, combined_loss_with_retrain
 
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
