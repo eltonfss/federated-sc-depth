@@ -629,6 +629,7 @@ if __name__ == "__main__":
                 ordered_local_weights = list(local_weights_by_participant.values())
                 ordered_num_train_samples = list(num_train_samples_by_participant.values())
                 ordered_participant_ids = list(local_weights_by_participant.keys())
+                breakpoint()
                 if len(ordered_local_weights) > 0:
                     print(f"Computing Global Update ...")
                     weights_of_weights = None
@@ -645,7 +646,7 @@ if __name__ == "__main__":
                             search_strategy=fed_train_average_search_strategy,
                             random_seed=random_seed,
                             aggregation_optimization_info=aggregation_optimization_info,
-                            replay_data=global_replay_data if global_replay_mode == 'combined_loss' else None
+                            replay_data=global_replay_data if 'combined_loss' in global_replay_mode else None
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(
@@ -661,8 +662,8 @@ if __name__ == "__main__":
                 print("Skipping Local Updates ...")
                 restoring_federation_state = False
                 global_model_round = None
-
-            if global_replay_mode == 'retrain' and global_replay_data:
+            breakpoint()
+            if 'retrain' in global_replay_mode and global_replay_data:
                 print("Post-Training Global Model with Shared Validation Set from Replay Dataset (ER) ... ")
                 global_retrain_checkpoint_callback = ModelCheckpoint(
                     dirpath=round_model_dir,
@@ -709,7 +710,8 @@ if __name__ == "__main__":
                 test_epoch_loss = test_global_model(global_data, global_model, global_trainer, global_checkpoint_path)
             else:
                 test_epoch_loss = test_global_model(global_data, global_model, global_trainer)
-            if global_replay_data and global_replay_mode == 'combined_loss':
+            breakpoint()
+            if global_replay_data and 'combined_loss' in global_replay_mode:
                 test_epoch_loss = update_test_loss_with_replay(
                     global_model, global_replay_data, global_trainer, test_epoch_loss
                 )
