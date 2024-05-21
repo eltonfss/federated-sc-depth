@@ -1,0 +1,463 @@
+SCENARIO 1 - KITTI to DDAD (FedSCDepth):
+  
+  - Model trained on KITTI Train with FedSCDepth:
+     
+     FEDERATED_MODEL_TIMESTAMP='15_11_2023_02:38:56'
+     FEDERATION_ROUND=3 
+     
+  - Model performance on KITTI Test BEFORE domain adaptation with FedSCDepth:
+         
+         Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.120  &   0.762  &   0.052  &   4.667  &   0.186  &   0.859  &   0.961  &   0.985  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.214  &   2.382  &   0.090  &   7.410  &   0.289  &   0.683  &   0.876  &   0.949  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.109  &   0.633  &   0.047  &   4.378  &   0.161  &   0.878  &   0.972  &   0.992  \\
+
+  
+  - Model performance on DDAD Test BEFORE domain adaptation with FedSCDepth:
+         
+         Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.246  &   5.862  &   0.123  &  23.383  &   0.414  &   0.579  &   0.808  &   0.893  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.256  &   7.411  &   0.131  &  22.544  &   0.395  &   0.546  &   0.773  &   0.875  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.251  &   6.099  &   0.126  &  23.748  &   0.419  &   0.569  &   0.800  &   0.887  \\
+  
+
+  - Model retrained on DDAD Train with FedSCDepth:
+
+      FEDERATED_MODEL_TIMESTAMP='12_03_2024_21:55:48'
+      FEDERATION_ROUND=10
+
+     
+  - Model performance on KITTI Test AFTER domain adaptation with FedSCDepth:
+  
+          Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.219  &   2.239  &   0.083  &   7.099  &   0.268  &   0.706  &   0.903  &   0.966  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.322  &   4.645  &   0.119  &   9.707  &   0.345  &   0.527  &   0.804  &   0.923  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.212  &   2.187  &   0.080  &   6.940  &   0.253  &   0.721  &   0.913  &   0.971  \\
+     
+  - Model performance on DDAD Test AFTER domain adaptation with FedSCDepth:
+          
+          Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.156  &   3.433  &   0.075  &  17.543  &   0.272  &   0.783  &   0.907  &   0.952  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.223  &   4.845  &   0.100  &  17.650  &   0.308  &   0.632  &   0.869  &   0.944  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.152  &   3.471  &   0.073  &  17.642  &   0.267  &   0.790  &   0.907  &   0.952  \\
+  
+=======================================================================================================================================
+  
+SCENARIO 2 - KITTI to DDAD (SCDepth):
+  
+  - Model trained on KITTI Train with SCDepth:
+      
+      CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti/02_05_2023/last.ckpt
+     
+  - Model performance on KITTI Test BEFORE domain adaptation with SCDepth:
+         
+         Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.115  &   0.742  &   0.050  &   4.555  &   0.183  &   0.872  &   0.963  &   0.985  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.191  &   2.072  &   0.084  &   7.111  &   0.282  &   0.726  &   0.891  &   0.949  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.106  &   0.638  &   0.046  &   4.275  &   0.159  &   0.886  &   0.973  &   0.991  \\
+
+    
+  - Model performance on DDAD Test BEFORE domain adaptation with SCDepth:
+         
+         Evaluation on full images
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.222  &   4.843  &   0.109  &  21.075  &   0.366  &   0.628  &   0.842  &   0.917  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.227  &   5.795  &   0.112  &  19.942  &   0.348  &   0.621  &   0.826  &   0.915  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.226  &   5.041  &   0.111  &  21.395  &   0.370  &   0.617  &   0.835  &   0.913  \\
+        
+   
+  - Model retrained on DDAD Train with SCDepth:
+      
+      CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti_to_ddad/11_03_2024/last.ckpt
+
+     
+  - Model performance on KITTI Test AFTER domain adaptation with SCDepth:
+  
+         Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.264  &   3.932  &   0.095  &   9.503  &   0.314  &   0.670  &   0.859  &   0.940  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.359  &   6.881  &   0.131  &  11.690  &   0.383  &   0.519  &   0.760  &   0.886  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.262  &   3.987  &   0.093  &   9.452  &   0.303  &   0.678  &   0.863  &   0.944  \\
+     
+  - Model performance on DDAD Test AFTER domain adaptation with SCDepth:
+  
+         Evaluation on full images
+
+          abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.142  &   2.992  &   0.063  &  15.056  &   0.239  &   0.816  &   0.927  &   0.968  \\
+
+         Evaluation on dynamic regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.217  &   5.253  &   0.094  &  16.967  &   0.300  &   0.675  &   0.866  &   0.954  \\
+
+         Evaluation on static regions
+
+           abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+        &   0.139  &   2.993  &   0.062  &  15.067  &   0.232  &   0.819  &   0.928  &   0.969  \\
+  
+=======================================================================================================================================
+  
+SCENARIO 3 - KITTI to DDAD (BOFedSCDepth):
+  
+  - Model pretrained on KITTI Train with BOFedSCDepth:
+      
+      FEDERATED_MODEL_TIMESTAMP='03_09_2023_13:07:11'
+      FEDERATION_ROUND=3
+     
+  - Model performance on KITTI Test BEFORE domain adaptation with BOFedSCDepth:
+  
+      Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.125  &   0.777  &   0.055  &   4.757  &   0.190  &   0.848  &   0.959  &   0.985  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.219  &   2.299  &   0.092  &   7.430  &   0.287  &   0.669  &   0.876  &   0.953  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.114  &   0.658  &   0.050  &   4.512  &   0.167  &   0.868  &   0.970  &   0.991  \\
+    
+  - Model performance on DDAD Test BEFORE domain adaptation with BOFedSCDepth:
+  
+      Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.247  &   5.691  &   0.122  &  22.913  &   0.404  &   0.574  &   0.808  &   0.899  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.266  &   7.465  &   0.134  &  22.468  &   0.395  &   0.521  &   0.764  &   0.876  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.251  &   5.899  &   0.124  &  23.243  &   0.408  &   0.568  &   0.802  &   0.895  \\
+    
+  - Model retrained on DDAD Train with BOFedSCDepth:
+
+      FEDERATED_MODEL_TIMESTAMP='13_03_2024_22:30:44'
+      FEDERATION_ROUND=11
+     
+  - Model performance on KITTI Test AFTER domain adaptation with BOFedSCDepth:
+  
+      Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.203  &   2.141  &   0.077  &   7.010  &   0.259  &   0.736  &   0.909  &   0.968  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.306  &   4.640  &   0.116  &   9.770  &   0.342  &   0.555  &   0.811  &   0.922  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.196  &   2.096  &   0.074  &   6.843  &   0.243  &   0.751  &   0.918  &   0.973  \\
+     
+  - Model performance on DDAD Test after domain adaptation with BOFedSCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.150  &   3.279  &   0.072  &  17.040  &   0.264  &   0.790  &   0.913  &   0.956  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.209  &   4.617  &   0.096  &  17.301  &   0.303  &   0.664  &   0.870  &   0.942  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.147  &   3.322  &   0.071  &  17.142  &   0.259  &   0.796  &   0.912  &   0.956  \\
+  
+  
+=======================================================================================================================================
+
+SCENARIO 4 - DDAD to KITTI (FedSCDepth):
+  
+  - Model pretrained on DDAD Train with FedSCDepth:
+     FEDERATED_MODEL_TIMESTAMP='07_12_2023_00:00:26'
+     FEDERATION_ROUND=3
+     
+  - Model performance on DDAD Test BEFORE domain adaptation with FedSCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.364  &   8.693  &   0.229  &  26.120  &   0.742  &   0.436  &   0.617  &   0.699  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.351  &  11.741  &   0.198  &  27.155  &   0.553  &   0.396  &   0.603  &   0.748  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.382  &   9.769  &   0.236  &  26.557  &   0.757  &   0.428  &   0.604  &   0.685  \\
+  
+  - Model performance on KITTI Test BEFORE domain adaptation with FedSCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.150  &   3.279  &   0.072  &  17.040  &   0.264  &   0.790  &   0.913  &   0.956  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.209  &   4.617  &   0.096  &  17.301  &   0.303  &   0.664  &   0.870  &   0.942  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.147  &   3.322  &   0.071  &  17.142  &   0.259  &   0.796  &   0.912  &   0.956  \\
+    
+  - Model retrained on KITTI Train with FedSCDepth:
+
+      FEDERATED_MODEL_TIMESTAMP='15_03_2024_11:22:23'
+      FEDERATION_ROUND=9
+     
+  - Model performance on DDAD Test AFTER domain adaptation with FedSCDepth:
+ 
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.214  &   4.996  &   0.107  &  21.585  &   0.367  &   0.646  &   0.842  &   0.913  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.236  &   6.360  &   0.118  &  20.786  &   0.361  &   0.596  &   0.811  &   0.898  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.217  &   5.186  &   0.109  &  21.903  &   0.371  &   0.639  &   0.836  &   0.909  \\
+     
+  - Model performance on KITTI Test AFTER domain adaptation with FedSCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.119  &   0.794  &   0.051  &   4.607  &   0.186  &   0.865  &   0.963  &   0.985  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.223  &   2.871  &   0.092  &   7.816  &   0.299  &   0.682  &   0.868  &   0.937  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.109  &   0.654  &   0.046  &   4.258  &   0.159  &   0.882  &   0.975  &   0.992  \\
+
+  
+=======================================================================================================================================
+  
+SCENARIO 5 - DDAD to KITTI (SCDepth):
+  
+  - Model pretrained on DDAD Train with SCDepth:
+      CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad/10_06_2023/last.ckpt
+     
+  - Model performance on DDAD Test BEFORE domain adaptation with SCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.152  &   3.157  &   0.068  &  15.638  &   0.249  &   0.794  &   0.922  &   0.966  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.221  &   4.707  &   0.096  &  16.454  &   0.297  &   0.655  &   0.883  &   0.953  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.148  &   3.149  &   0.066  &  15.656  &   0.242  &   0.802  &   0.924  &   0.967  \\
+    
+  - Model performance on KITTI Test BEFORE domain adaptation with SCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.330  &   4.442  &   0.123  &   9.573  &   0.367  &   0.511  &   0.797  &   0.922  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.429  &   8.628  &   0.151  &  12.384  &   0.423  &   0.430  &   0.700  &   0.865  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.326  &   4.348  &   0.121  &   9.433  &   0.357  &   0.509  &   0.803  &   0.928  \\
+    
+  - Model retrained on KITTI Train with SCDepth:
+
+      CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad_to_kitti/16_03_2024/last.ckpt
+     
+  - Model performance on DDAD Test AFTER domain adaptation with SCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.240  &   5.242  &   0.118  &  21.523  &   0.392  &   0.590  &   0.822  &   0.904  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.233  &   5.959  &   0.114  &  19.961  &   0.350  &   0.601  &   0.829  &   0.916  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.247  &   5.502  &   0.122  &  21.893  &   0.399  &   0.576  &   0.811  &   0.897  \\
+
+     
+  - Model performance on KITTI Test after domain adaptation with SCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.115  &   0.766  &   0.051  &   4.675  &   0.186  &   0.865  &   0.962  &   0.984  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.209  &   2.531  &   0.089  &   7.639  &   0.295  &   0.697  &   0.876  &   0.943  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.107  &   0.651  &   0.046  &   4.384  &   0.161  &   0.879  &   0.972  &   0.991  \\
+  
+=======================================================================================================================================
+  
+SCENARIO 6 - DDAD to KITTI (BOFedSCDepth):
+  
+  - Model pretrained on DDAD Train with BOFedSCDepth:
+      FEDERATED_MODEL_TIMESTAMP='09_10_2023_22:04:30'
+      FEDERATION_ROUND=3
+     
+  - Model performance on DDAD Test BEFORE domain adaptation with BOFedSCDepth:
+  
+     Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.215  &   5.412  &   0.113  &  22.755  &   0.381  &   0.615  &   0.827  &   0.906  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.272  &   7.901  &   0.137  &  22.914  &   0.403  &   0.519  &   0.748  &   0.863  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.213  &   5.535  &   0.114  &  23.021  &   0.380  &   0.613  &   0.826  &   0.905  \\
+    
+  - Model performance on KITTI Test BEFORE domain adaptation with BOFedSCDepth:
+  
+      Evaluation on full images
+
+      abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.321  &   3.100  &   0.124  &   7.479  &   0.357  &   0.484  &   0.798  &   0.932  \\
+
+     Evaluation on dynamic regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.396  &   5.569  &   0.143  &   9.836  &   0.396  &   0.438  &   0.727  &   0.881  \\
+
+     Evaluation on static regions
+
+       abs_rel |   sq_rel |    log10 |     rmse | rmse_log |       a1 |       a2 |       a3 | 
+    &   0.306  &   2.874  &   0.119  &   7.266  &   0.341  &   0.496  &   0.811  &   0.942  \\
+    
+  - Model retrained on KITTI Train with BOFedSCDepth:
+
+      FEDERATED_MODEL_TIMESTAMP="17_03_2024_11:34:21"
+      FEDERATION_ROUND=?
+     
+  - Model performance on DDAD Test AFTER domain adaptation with BOFedSCDepth:
+     
+  - Model performance on KITTI Test after domain adaptation with BOFedSCDepth:
+  
+  
+=======================================================================================================================================

@@ -33,8 +33,8 @@ CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt" # DDAD
 #FEDERATED_MODEL_TIMESTAMP='27_04_2024_02:45:04'
 #FEDERATION_ROUND=11
 #(BOFEDSCDEPTH-KITTI-to-DDAD-ER-GLOBAL-RETRAIN) DISTRIBUTION = IID; TOTAL PARTICIPANTS = 12 ; PARTICIPANTS PER ROUND = 4 ; LOCAL EPOCHS = 3; SEARCH RANGE = 6; MAX LOCAL BATCHES TRAIN = 1000; MAX LOCAL BATCHES VAL = -1; MAX_ROUNDS = 36 ;
-FEDERATED_MODEL_TIMESTAMP='04_05_2024_22:34:29'
-FEDERATION_ROUND=11
+#FEDERATED_MODEL_TIMESTAMP='04_05_2024_22:34:29'
+#FEDERATION_ROUND=11
 # (BOFEDSCDEPTH-KITTI-to-DDAD-ER-CONSTRAINED-LOSS-GLOBAL-RETRAIN) DISTRIBUTION = IID; TOTAL PARTICIPANTS = 12 ; PARTICIPANTS PER ROUND = 4 ; LOCAL EPOCHS = 3; SEARCH RANGE = 6; MAX LOCAL BATCHES TRAIN = 1000; MAX LOCAL BATCHES VAL = -1; MAX_ROUNDS = 36 ;
 #FEDERATED_MODEL_TIMESTAMP='07_05_2024_22:07:30'
 #FEDERATION_ROUND=11
@@ -66,9 +66,9 @@ FEDERATION_ROUND=11
 #FEDERATION_ROUND=11
 
 # FEDERATED
-PT="/home/eltons-pc/Backup/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
+#PT="/home/eltons-pc/Backup/Logs/federated-sc-depth/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND/global_model_weights.pt"
 #TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
-TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated_domain_adaptation/to_$DATASET/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
+#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated_domain_adaptation/to_$DATASET/$FEDERATED_MODEL_TIMESTAMP/round_$FEDERATION_ROUND"
 
 # CENTRALIZED KITTI
 #CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti/02_05_2023/last.ckpt
@@ -80,13 +80,19 @@ TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/federated_domain_adaptation/to_
 
 # CENTRALIZED KITTI to DDAD
 #CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti_to_ddad/11_03_2024/last.ckpt
-#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/02_05_2023"
 #TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/11_03_2024"
 
+# CENTRALIZED KITTI to DDAD with Retrain
+#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/kitti_to_ddad/13_05_2024/last.ckpt
+#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/13_05_2024"
+
 # CENTRALIZED DDAD to KITTI
-#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad_to_kitti/16_03_2024/last.ckpt
-#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/10_06_2023"
-#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/16_03_2024"
+CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad_to_kitti/16_03_2024/last.ckpt
+TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/16_03_2024"
+
+# CENTRALIZED DDAD to KITTI with Retrain
+#CKPT=/home/eltons-pc/Logs/centralized_sc_depth/ddad_to_kitti/13_05_2024/last.ckpt
+#TEST_OUTPUT_DIR="/home/eltons-pc/Logs/inferences/centralized_domain_adaptation/$DATASET/13_05_2024"
 
 TEST_OUTPUT_LOG="$TEST_OUTPUT_DIR/test.log"
 
