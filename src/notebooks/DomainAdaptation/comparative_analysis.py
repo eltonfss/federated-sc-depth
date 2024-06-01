@@ -48,7 +48,6 @@ class ComparativeAnalysis(object):
         plt.legend(title='Training Method', loc='upper right')
         plt.show()
         
-        
     def plot_metrics_averages(self, metrics, target_region_type=None):
         return self.plot_metrics(metrics, comparison_function=self.compute_metric_averages, group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_region_type'], label='Averages', target_region_type=target_region_type)
 
