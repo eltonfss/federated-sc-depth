@@ -1,0 +1,6 @@
+Standard Experience Replay incurs higher memory consumption and risks privacy preservation
+Alternative is to use shared validation dataset of previous dataset to constraint updates with new dataset
+1. Use it during the Bayesian Optimization of the aggregation phase of each round, to pick the combination of weights that achieves best result on new and old dataset
+2. Retrain the global model after each aggregation with the validation dataset of previous dataset, on the central server, to alleviate forgetting
+
+Another approach would be to average the global model from the source dataset with the updated model of the target dataset after each FL round. This could also be combined with the previous alternatives.
