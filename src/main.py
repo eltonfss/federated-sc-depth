@@ -703,7 +703,6 @@ if __name__ == "__main__":
                 if global_retrainer.interrupted:
                     raise KeyboardInterrupt("Global ReTrain Interrupted")
                 print("Post-Training Global Model with Shared Validation Set from Replay Dataset (ER) Completed !")
-            breakpoint()
             if 'average' in global_replay_mode and source_global_model:
                 print("Merging Global Model with Source Global Model (ER) ... ")
                 averaged_weights = average_weights([global_model.state_dict(), source_global_model.state_dict()])
