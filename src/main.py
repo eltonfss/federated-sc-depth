@@ -22,7 +22,7 @@ from sc_depth_module_v3_with_er import SCDepthModuleV3WithExperienceReplay
 from utils import set_seed, restore_federated_training_state, backup_federated_training_state, estimate_model_size, \
     average_weights_by_num_samples, average_weights_optimization_by_search, \
     load_weights_without_batchnorm, load_weights, \
-    compute_iid_sample_partitions, mkdir_if_missing, test_global_model, update_test_loss_with_replay
+    compute_iid_sample_partitions, mkdir_if_missing, test_global_model, update_test_loss_with_replay, average_weights
 from configargs import get_configargs
 from sc_depth_module_v3 import SCDepthModuleV3
 from sc_depth_data_module import SCDepthDataModule
@@ -117,6 +117,7 @@ if __name__ == "__main__":
     replay_dataset_name = sc_depth_hparams.replay_dataset_name
     replay_dataset_dir = sc_depth_hparams.replay_dataset_dir
     global_replay_mode = sc_depth_hparams.global_replay_mode
+    source_global_model = None
     if replay_dataset_name and replay_dataset_dir:
         assert replay_dataset_name != sc_depth_hparams.dataset_name
     global_model = None
@@ -132,9 +133,11 @@ if __name__ == "__main__":
         print(f"restoring trained model from {config_args.pt_path}")
         weights = torch.load(config_args.pt_path)
         global_model.load_state_dict(weights)
+        source_global_model = global_model
     elif config_args.ckpt_path:
         print(f"restoring trained model from {config_args.ckpt_path}")
         global_model = global_model.load_from_checkpoint(config_args.ckpt_path, strict=False)
+        source_global_model = global_model
     if global_model is None:
         raise Exception("model_version is invalid! Only v3 is currently supported!")
     if restoring_federation_state and not skip_restore:
@@ -700,6 +703,12 @@ if __name__ == "__main__":
                 if global_retrainer.interrupted:
                     raise KeyboardInterrupt("Global ReTrain Interrupted")
                 print("Post-Training Global Model with Shared Validation Set from Replay Dataset (ER) Completed !")
+            breakpoint()
+            if 'average' in global_replay_mode and source_global_model:
+                print("Merging Global Model with Source Global Model (ER) ... ")
+                averaged_weights = average_weights([global_model.state_dict(), source_global_model.state_dict()])
+                global_model.load_state_dict(averaged_weights)
+                print("Merging Global Model with Source Global Model (ER) Completed !")
 
             print("Testing Global Model after Update...")
             global_trainer = Trainer(**global_trainer_config)

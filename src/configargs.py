@@ -14,7 +14,9 @@ def get_configargs():
     parser.add_argument('--replay_dataset_dir', type=str, default="")
     parser.add_argument('--replay_dataset_name', type=str, default="", choices=['kitti', 'nyu', 'ddad', 'bonn', 'tum'])
     parser.add_argument('--global_replay_mode', type=str, default="none", choices=[
-        'none', 'combined_loss', 'retrain', 'combined_loss_with_retrain'
+        'none', 'combined_loss', 'retrain', 'combined_loss_with_retrain', 'average_models',
+        'average_models_with_combined_loss', 'average_models_with_retrain',
+        'average_models_with_combined_loss_with_retrain'
     ])
     parser.add_argument('--fed_train_num_global_retrain_epochs', type=int, default=1)
     parser.add_argument('--sequence_length', type=int, default=3, help='number of images for training')
