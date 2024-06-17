@@ -16,7 +16,7 @@ DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 #SOURCE_MODEL_PATH="/home/eltons-pc/Logs/federated-sc-depth/07_12_2023_00:00:26/round_3/global_model_weights.pt"
 
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/03_06_2024_21:48:37"
+#RESTORE_DIR="$OUTPUT_DIR/09_06_2024_13:27:53"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -55,7 +55,7 @@ REPLAY_DATASET_NAME=kitti
 ER_BUFFER_SIZE=200
 ER_SIZE=1
 ER_FREQUENCY=1
-ER_MODE='average_models' # none, combined_loss, retrain, combined_loss_with_retrain, average_models, average_models_with_combined_loss, average_models_with_retrain, average_models_with_combined_loss_with_retrain
+ER_MODE='average_models_with_retrain' # none, combined_loss, retrain, combined_loss_with_retrain, average_models, average_models_with_combined_loss, average_models_with_retrain, average_models_with_combined_loss_with_retrain
 
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \
 --fed_train_num_participants=$NUM_PARTICIPANTS --fed_train_num_local_epochs=$FED_TRAIN_NUM_EPOCHS \
