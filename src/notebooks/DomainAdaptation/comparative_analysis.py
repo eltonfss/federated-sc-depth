@@ -1,6 +1,7 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 
 class ComparativeAnalysis(object):
@@ -35,27 +36,63 @@ class ComparativeAnalysis(object):
                 averages[metric] = after_adaptation_group[metric].mean()
         return pd.Series(averages)
 
-    def plot_comparison(self, df, region_type, source_train_dataset, target_train_dataset, label):
+    def plot_comparison(self, df, region_type, source_train_dataset, target_train_dataset, label, 
+                        save_as_pdf=False, legend_configs=None, colors=None, hatches=None,):
+        # Melt the DataFrame for plotting
         melted_df = pd.melt(df, id_vars=['training_method'], var_name='metric', value_name='value')
-        plt.figure(figsize=(12, 8))
-        sns.barplot(x='metric', y='value', hue='training_method', data=melted_df, palette='Set2')
-        plt.title(
-            f'{label} Across Test Metrics by Training Method for {region_type} regions in {source_train_dataset} to {target_train_dataset} Domain Adaptation Experiment')
-        plt.xlabel('Metric')
-        plt.ylabel(label)
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.legend(title='Training Method', loc='upper right')
-        plt.show()
-        
-    def plot_metrics_averages(self, metrics, target_region_type=None):
-        return self.plot_metrics(metrics, comparison_function=self.compute_metric_averages, group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_region_type'], label='Averages', target_region_type=target_region_type)
 
-    def plot_metrics_differences(self, metrics, target_region_type=None):
-        return self.plot_metrics(metrics, comparison_function=self.compute_metric_differences, group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_dataset', 'test_region_type'], label='Difference Proportions', target_region_type=target_region_type)
+        # Set up the plot
+        plt.figure(figsize=(12, 8))
+
+        # Create the barplot with the specified colors
+        sns.barplot(x='metric', y='value', hue='training_method', data=melted_df, palette=colors)
+
+        # Apply hatches if specified
+        if hatches:
+            for bars, hatch in zip(plt.gca().containers, hatches):
+                for bar in bars:
+                    bar.set_hatch(hatch)
+
+        # Customize the plot
+        plt.xlabel('METRIC')
+        plt.ylabel(label)
+        #plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        # Configure legend
+        if legend_configs is False:
+            plt.legend().remove()
+        elif legend_configs:
+            plt.legend(**legend_configs)
+
+        # Save the plot as a PDF if specified
+        if save_as_pdf:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+            plt.savefig(f'{label}_{region_type}_{source_train_dataset}_to_{target_train_dataset}_{timestamp}.pdf')
+
+        # Show the plot
+        plt.show()
+
+        
+        
+    def plot_metrics_averages(self, metrics, target_region_type=None, save_as_pdf=False, legend_configs={}, colors=None, hatches=None,):
+        return self.plot_metrics(
+            metrics, comparison_function=self.compute_metric_averages, 
+            group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_region_type'], 
+            label='Averages', target_region_type=target_region_type, save_as_pdf=save_as_pdf, legend_configs=legend_configs,
+            colors=colors, hatches=hatches,
+        )
+
+    def plot_metrics_differences(self, metrics, target_region_type=None, save_as_pdf=False, legend_configs={}, colors=None, hatches=None,):
+        return self.plot_metrics(
+            metrics, comparison_function=self.compute_metric_differences, 
+            group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_dataset', 'test_region_type'], 
+            label='DIFFERENCE PROPORTIONS', target_region_type=target_region_type, save_as_pdf=save_as_pdf, legend_configs=legend_configs,
+            colors=colors, hatches=hatches,
+        )
         
     
-    def plot_metrics(self, metrics, comparison_function, group_columns, label, target_region_type=None):
+    def plot_metrics(self, metrics, comparison_function, group_columns, label, target_region_type=None, save_as_pdf=False, legend_configs={}, colors=None, hatches=None,):
 
         assert comparison_function, 'Comparison Function must be passed!'
         assert group_columns, 'Group Columns must be passed!'
@@ -99,7 +136,12 @@ class ComparativeAnalysis(object):
                     pivoted_df = kitti_to_ddad_by_region_type_melted_df.pivot(index='training_method',
                                                                               columns=['test_dataset', 'metric'],
                                                                               values='value')
-                    pivoted_df.columns = [f"{col[1]} ({col[0]})" for col in pivoted_df.columns]
+                    #pivoted_df.columns = [f"{col[1]} ({col[0]})" for col in pivoted_df.columns]
+                    pivoted_df.columns = [f"{col[1]}" for col in pivoted_df.columns]
                     pivoted_df = pivoted_df.reset_index()
                     display(pivoted_df)
-                    self.plot_comparison(pivoted_df, region_type, source_train_dataset, target_train_dataset, label)
+                    self.plot_comparison(
+                        pivoted_df, region_type, source_train_dataset, target_train_dataset, 
+                        label, save_as_pdf, legend_configs,
+                        colors=colors, hatches=hatches,
+                    )
