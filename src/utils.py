@@ -152,7 +152,8 @@ def average_weights_optimization_by_search(
         local_model_weight_list, num_samples_for_each_local_model,
         global_model, global_data,
         global_trainer_config, search_range_size,
-        search_strategy, random_seed, aggregation_optimization_info
+        search_strategy, random_seed, aggregation_optimization_info,
+        acquisition_function, acquisition_optimizer
 ):
     """
     search_strategy:   'GridSearch',
@@ -188,7 +189,8 @@ def average_weights_optimization_by_search(
     # compute weight of weight combinations based on search strategy
     w_of_w_combinations = compute_weight_of_weight_combinations(
         best_test_loss, best_weights_of_weights, global_data, global_model, global_trainer_config,
-        model_save_dir, local_model_ids, local_model_weight_list, random_seed, search_range_size, search_strategy
+        model_save_dir, local_model_ids, local_model_weight_list, random_seed, search_range_size, search_strategy,
+        acquisition_function, acquisition_optimizer
     )
 
     # Iterate through the precomputed combinations of weights for the local models
@@ -219,7 +221,8 @@ def average_weights_optimization_by_search(
 def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weights, global_data, global_model,
                                           global_trainer_config, model_save_dir, local_model_ids,
                                           local_model_weight_list, random_seed,
-                                          search_range_size, search_strategy):
+                                          search_range_size, search_strategy,
+                                          acquisition_function, acquisition_optimizer):
     w_of_w_combos = []
     rng_seed = np.random.default_rng(random_seed)
     common_args = dict(
@@ -232,7 +235,9 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
         search_range_size=search_range_size,
         global_data=global_data,
         global_model=global_model,
-        global_trainer_config=global_trainer_config
+        global_trainer_config=global_trainer_config,
+        acquisition_function=acquisition_function,
+        acquisition_optimizer=acquisition_optimizer
     )
     common_args_unconstrained = dict(
         w_of_w_bounds=compute_unconstrained_w_of_w_bounds(local_model_weight_list),
@@ -278,12 +283,12 @@ def compute_weight_of_weight_combinations(best_test_loss, best_weights_of_weight
 
 def compute_w_of_w_combinations_with_bayesian_regression_grid(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
+        global_data, global_model, global_trainer_config, w_of_w_bounds, acquisition_function, acquisition_optimizer, **kwargs
 ):
     print("Running Bayesian Optimization")
     best_w_of_w_combos, best_losses, w_of_w_combos, losses = compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds
+        global_data, global_model, global_trainer_config, w_of_w_bounds, acquisition_function, acquisition_optimizer
     )
 
     print("Fitting Regression Model and Estimating Optimal Weights with Grid Search")
@@ -457,7 +462,7 @@ def compute_w_of_w_combinations_with_grid_search(local_model_weight_list, search
 
 def compute_w_of_w_combinations_with_bayesian_optimization(
         baseline_test_loss, baseline_weights_of_weights, local_model_weight_list, random_seed, search_range_size,
-        global_data, global_model, global_trainer_config, w_of_w_bounds, **kwargs
+        global_data, global_model, global_trainer_config, w_of_w_bounds, acquisition_function, acquisition_optimizer, **kwargs
 ):
     best_w_of_w_combinations = []
     best_test_losses = []
@@ -483,7 +488,9 @@ def compute_w_of_w_combinations_with_bayesian_optimization(
         n_initial_points=n_initial_random_points,
         verbose=True,
         random_state=random_seed,
-        n_jobs=-1
+        n_jobs=-1,
+        acq_func=acquisition_function,
+        acq_optimizer=acquisition_optimizer
     )
     weights_of_weights_samples = result.x_iters
     test_loss_samples = list(result.func_vals)

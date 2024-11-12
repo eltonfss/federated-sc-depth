@@ -82,6 +82,8 @@ if __name__ == "__main__":
     fed_train_participant_order = config_args.fed_train_participant_order
     fed_train_num_local_sanity_val_steps = config_args.fed_train_num_local_sanity_val_steps
     fed_train_average_search_strategy = config_args.fed_train_average_search_strategy
+    acquisition_function = config_args.fed_train_average_search_acquisition_function
+    acquisition_optimizer = config_args.fed_train_average_search_acquisition_optimizer
     fed_train_average_search_range = config_args.fed_train_average_search_range
     fed_train_skip_bad_rounds = config_args.fed_train_skip_bad_rounds
 
@@ -581,7 +583,9 @@ if __name__ == "__main__":
                             search_range_size=fed_train_average_search_range,
                             search_strategy=fed_train_average_search_strategy,
                             random_seed=random_seed,
-                            aggregation_optimization_info=aggregation_optimization_info
+                            aggregation_optimization_info=aggregation_optimization_info,
+                            acquisition_function=acquisition_function,
+                            acquisition_optimizer=acquisition_optimizer
                         )
                     else:
                         global_weights, weights_of_weights = average_weights_by_num_samples(

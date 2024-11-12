@@ -826,11 +826,13 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
     best_val_loss_by_ranges = {}
     communication_cost_by_ranges = {}
     num_steps_by_ranges = {}
+    num_avg_ops_by_ranges = {}
     fed_id_by_ranges = {}
 
     communication_cost_by_id = {}
     best_val_loss_by_id = {}
     num_steps_by_id = {}
+    num_avg_ops_by_id = {}
     ids_by_search_range = {}
 
     for federated_training_id in federated_training_ids:
@@ -869,6 +871,16 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
                 total_steps += num_steps_participant
             num_steps_per_round.append(total_steps)
 
+        # compute number of avg ops by round (computational cost)
+        num_avg_ops_per_round = []
+        total_avg_ops = 0
+        for round_num, participant_order in participant_order_by_round.items():
+            total_avg_ops += 1
+            n_initial_random_points = int(len(participant_order) * fed_train_search_range)
+            n_optimization_iterations = max(n_initial_random_points * 2, 5)
+            total_avg_ops += n_optimization_iterations
+            num_avg_ops_per_round.append(total_avg_ops)
+
         # Extract global metrics federated_training_state
         global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
         global_test_loss = global_test_loss[:round_cap]
@@ -876,6 +888,7 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
         # Calculate communication cost and num_steps up to the lowest loss for each round
         communication_cost = [0] * len(global_test_loss)
         num_steps = [0] * len(global_test_loss)
+        num_avg_ops = [0] * len(global_test_loss)
         lowest_loss_so_far = float('inf')
         for round_idx in range(len(global_test_loss)):
             if cost_upper_bound:
@@ -883,14 +896,18 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
             else:
                 round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
             round_num_steps = num_steps_per_round[round_idx]
+            round_num_avg_ops = num_avg_ops_per_round[round_idx]
             if global_test_loss[round_idx] < lowest_loss_so_far:
                 lowest_loss_so_far = global_test_loss[round_idx]
             else:
                 round_communication_cost = communication_cost[round_idx - 1]
                 round_num_steps = num_steps[round_idx - 1]
+                round_num_avg_ops = num_avg_ops[round_idx - 1]
             communication_cost[round_idx] = round_communication_cost
             num_steps[round_idx] = round_num_steps
+            num_avg_ops[round_idx] = round_num_avg_ops
         num_steps_by_id[federated_training_id] = num_steps[-1]
+        num_avg_ops_by_id[federated_training_id] = num_avg_ops[-1]
 
         lowest_global_test_loss = [min(global_test_loss[:i+1]) for i in range(len(global_test_loss))]
         best_val_loss_by_id[federated_training_id] = lowest_global_test_loss[-1]
@@ -904,14 +921,17 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
         best_val_losses = [best_val_loss_by_id[fed_id] for fed_id in fed_ids]
         communication_costs = [communication_cost_by_id[fed_id] for fed_id in fed_ids]
         num_steps = [num_steps_by_id[fed_id] for fed_id in fed_ids]
+        num_avg_ops = [num_avg_ops_by_id[fed_id] for fed_id in fed_ids]
         best_val_loss = min(best_val_losses)
         best_index = best_val_losses.index(best_val_loss)
         best_communication_cost = communication_costs[best_index]
         best_num_steps = num_steps[best_index]
+        best_num_avg_ops = num_avg_ops[best_index]
         best_fed_id = fed_ids[best_index]
         best_val_loss_by_ranges[search_range] = best_val_loss
         communication_cost_by_ranges[search_range] = best_communication_cost
         num_steps_by_ranges[search_range] = best_num_steps
+        num_avg_ops_by_ranges[search_range] = best_num_avg_ops
         fed_id_by_ranges[search_range] = best_fed_id
 
-    return list_search_range, best_val_loss_by_ranges, communication_cost_by_ranges, num_steps_by_ranges, fed_id_by_ranges
+    return list_search_range, best_val_loss_by_ranges, communication_cost_by_ranges, num_steps_by_ranges, num_avg_ops_by_ranges, fed_id_by_ranges
