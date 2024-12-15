@@ -2,12 +2,12 @@ export PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_m
 echo "PYTORCH_CUDA_ALLOC_CONF=$PYTORCH_CUDA_ALLOC_CONF"
 export PYTHONPATH="$PYTHONPATH:$PWD/src"
 echo "PYTHONPATH=$PYTHONPATH"
-CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
-DATASET_DIR="/home/eltons-pc/Datasets/kitti"
-#CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
-#DATASET_DIR="/home/eltons-pc/Datasets/ddad"
+#CONFIG_DIR="/home/eltons-pc/Configurations/v3/kitti_raw.txt"
+#DATASET_DIR="/home/eltons-pc/Datasets/kitti"
+CONFIG_DIR="/home/eltons-pc/Configurations/v3/ddad.txt"
+DATASET_DIR="/home/eltons-pc/Datasets/ddad"
 OUTPUT_DIR="/home/eltons-pc/Logs/federated-sc-depth"
-RESTORE_DIR="$OUTPUT_DIR/15_11_2024_11:43:15"
+RESTORE_DIR="$OUTPUT_DIR/14_12_2024_11:48:41"
 MAX_LOCAL_TRAIN_BATCHES=1000
 MAX_LOCAL_VAL_BATCHES=-1
 #PARTICIPANT_SORTING="sequential" #IID
@@ -34,15 +34,15 @@ FRAC_PARTICIPANTS_PER_ROUND=0.3333333333333333 # 1/3
 
 #FED_TRAIN_AVG_SEARCH_RANGE=-1 #FedSCDepth
 #FED_TRAIN_AVG_SEARCH_RANGE=4 #BOFedSCDepth (0)
-#FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth (1)
+FED_TRAIN_AVG_SEARCH_RANGE=6 #BOFedSCDepth (1)
 #FED_TRAIN_AVG_SEARCH_RANGE=8 #BOFedSCDepth (2)
-FED_TRAIN_AVG_SEARCH_RANGE=10 #BOFedSCDepth (3)
+#FED_TRAIN_AVG_SEARCH_RANGE=10 #BOFedSCDepth (3)
 #FED_TRAIN_AVG_SEARCH_RANGE=12 #BOFedSCDepth (4)
 
 #ED_TRAIN_AVG_SEARCH_STRATEGY="" #FedSCDepth
 FED_TRAIN_AVG_SEARCH_STRATEGY="BayesianOptimization" #BOFedSCDepth
 
-FED_TRAIN_AVG_SEARCH_ACQUISITION_FUNCTION="gp_hedge" # gp_hedge, EI, LCB, PI
+FED_TRAIN_AVG_SEARCH_ACQUISITION_FUNCTION="LCB" # gp_hedge, EI, LCB, PI
 FED_TRAIN_AVG_SEARCH_ACQUISITION_OPTIMIZER="auto" # sampling, lbfgs, auto
 
 python src/main.py --config $CONFIG_DIR --dataset_dir $DATASET_DIR --fed_train_num_rounds=$NUM_ROUNDS \

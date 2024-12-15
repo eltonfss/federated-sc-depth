@@ -31,7 +31,7 @@ def get_dir_size(dir_path, formats=None):
     return total_files, total_size_gb, filtered_files, filtered_size_gb
 
 
-def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_size=None, show_legend=True, marker_size=None):
+def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_size=None, show_legend=True, marker_size=None, chart_type=go.Scatter):
     fig.update_xaxes(mirror=True,ticks='outside',showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='black', gridcolor='lightgrey')
     fig.update_layout(
@@ -60,10 +60,11 @@ def standardize_fig(fig, x_tick_size=14, y_tick_size=20, legend_size=12, trace_s
         legend={'font': {'size': legend_size, 'family': 'Arial', 'color': 'black'}, 'bordercolor': 'black', 'borderwidth': 0.0},
         legend_tracegroupgap=10
     )
-    if trace_size:
-        fig.update_traces(line={'width': trace_size}) # Update thickness
-    if marker_size:
-        fig.update_traces(marker={'size': marker_size})
+    if chart_type == go.Scatter:
+        if trace_size:
+            fig.update_traces(line={'width': trace_size}) # Update thickness
+        if marker_size:
+            fig.update_traces(marker={'size': marker_size})
     fig.update_traces(showlegend=show_legend)
     pio.full_figure_for_development(fig, warn=False)
     return fig
@@ -836,7 +837,7 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
     ids_by_search_range = {}
 
     for federated_training_id in federated_training_ids:
-
+        print(federated_training_id)
         dir_path = os.path.join(federated_training_dirpath, federated_training_id)
         assert os.path.exists(dir_path), 'federated_training_dirpath does not exist!'
         with open(os.path.join(dir_path, 'federated_training_state.json'), 'r') as f:
@@ -849,6 +850,7 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
         fed_train_local_batch_size = config_args['fed_train_local_batch_size']
         fed_train_num_local_epochs = config_args['fed_train_num_local_epochs']
         fed_train_search_range = config_args['fed_train_average_search_range']
+        print(fed_train_search_range)
         fed_ids_with_search_range = ids_by_search_range.get(fed_train_search_range, [])
         fed_ids_with_search_range.append(federated_training_id)
         ids_by_search_range[fed_train_search_range] = fed_ids_with_search_range
@@ -935,3 +937,120 @@ def get_metrics_by_search_range(federated_training_dirpath, round_cap, federated
         fed_id_by_ranges[search_range] = best_fed_id
 
     return list_search_range, best_val_loss_by_ranges, communication_cost_by_ranges, num_steps_by_ranges, num_avg_ops_by_ranges, fed_id_by_ranges
+
+
+def get_metrics_by_acquisition_function(federated_training_dirpath, round_cap, federated_training_ids, cost_multiplier=1, resample_local_batches=True, cost_upper_bound=True):
+    best_val_loss_by_acq_func = {}
+    communication_cost_by_acq_func = {}
+    num_steps_by_acq_func = {}
+    num_avg_ops_by_acq_func = {}
+    fed_id_by_acq_func = {}
+
+    communication_cost_by_id = {}
+    best_val_loss_by_id = {}
+    num_steps_by_id = {}
+    num_avg_ops_by_id = {}
+    ids_by_acq_func = {}
+
+    for federated_training_id in federated_training_ids:
+        print(federated_training_id)
+        dir_path = os.path.join(federated_training_dirpath, federated_training_id)
+        assert os.path.exists(dir_path), 'federated_training_dirpath does not exist!'
+        with open(os.path.join(dir_path, 'federated_training_state.json'), 'r') as f:
+            federated_training_state = json.load(f)
+
+        config_args = federated_training_state['config_args']
+        num_participants = config_args['fed_train_num_participants']
+        frac_participants_per_round = config_args['fed_train_frac_participants_per_round']
+        fed_train_num_local_train_batches = config_args['fed_train_num_local_train_batches']
+        fed_train_local_batch_size = config_args['fed_train_local_batch_size']
+        fed_train_num_local_epochs = config_args['fed_train_num_local_epochs']
+        fed_train_search_range = config_args['fed_train_average_search_range']
+        fed_train_acq_func = config_args.get('fed_train_average_search_acquisition_function', "GP_HEDGE")
+        fed_ids_with_acq_func = ids_by_acq_func.get(fed_train_acq_func, [])
+        fed_ids_with_acq_func.append(federated_training_id)
+        ids_by_acq_func[fed_train_acq_func] = fed_ids_with_acq_func
+        sample_train_indexes_by_participant = federated_training_state['sample_train_indexes_by_participant']
+        participant_order_by_round = federated_training_state['participant_order_by_round']
+        num_participants_per_round = math.ceil(num_participants * frac_participants_per_round)
+        global_model_bytes_by_round = federated_training_state["global_model_bytes_by_round"]
+        model_size_mb = sum(list(global_model_bytes_by_round.values())) / len(global_model_bytes_by_round) / 1024 / 1024
+        bytes_per_participant = model_size_mb * 2 / 1024  # Each participant uploads the entire model to the server, and downloads the updated model
+
+        # compute number of steps by round (computational cost)
+        num_steps_per_round = []
+        total_steps = 0
+        for round_num, participant_order in participant_order_by_round.items():
+            for participant_id in participant_order:
+                num_samples_available = len(sample_train_indexes_by_participant[str(participant_id)])
+                num_batches_available = num_samples_available / fed_train_local_batch_size
+                num_batches_per_epoch = fed_train_num_local_train_batches if resample_local_batches else math.floor(
+                    min(fed_train_num_local_train_batches, num_batches_available))
+                num_steps_participant = fed_train_num_local_epochs * num_batches_per_epoch
+                total_steps += num_steps_participant
+            num_steps_per_round.append(total_steps)
+
+        # compute number of avg ops by round (computational cost)
+        num_avg_ops_per_round = []
+        total_avg_ops = 0
+        for round_num, participant_order in participant_order_by_round.items():
+            total_avg_ops += 1
+            n_initial_random_points = int(len(participant_order) * fed_train_search_range)
+            n_optimization_iterations = max(n_initial_random_points * 2, 5)
+            total_avg_ops += n_optimization_iterations
+            num_avg_ops_per_round.append(total_avg_ops)
+
+        # Extract global metrics federated_training_state
+        global_test_loss = list(federated_training_state["global_test_loss_by_round"].values())
+        global_test_loss = global_test_loss[:round_cap]
+
+        # Calculate communication cost and num_steps up to the lowest loss for each round
+        communication_cost = [0] * len(global_test_loss)
+        num_steps = [0] * len(global_test_loss)
+        num_avg_ops = [0] * len(global_test_loss)
+        lowest_loss_so_far = float('inf')
+        for round_idx in range(len(global_test_loss)):
+            if cost_upper_bound:
+                round_communication_cost = 2 * num_participants * bytes_per_participant * (round_idx + 1)
+            else:
+                round_communication_cost = 2 * num_participants_per_round * bytes_per_participant * (round_idx + 1)
+            round_num_steps = num_steps_per_round[round_idx]
+            round_num_avg_ops = num_avg_ops_per_round[round_idx]
+            if global_test_loss[round_idx] < lowest_loss_so_far:
+                lowest_loss_so_far = global_test_loss[round_idx]
+            else:
+                round_communication_cost = communication_cost[round_idx - 1]
+                round_num_steps = num_steps[round_idx - 1]
+                round_num_avg_ops = num_avg_ops[round_idx - 1]
+            communication_cost[round_idx] = round_communication_cost
+            num_steps[round_idx] = round_num_steps
+            num_avg_ops[round_idx] = round_num_avg_ops
+        num_steps_by_id[federated_training_id] = num_steps[-1]
+        num_avg_ops_by_id[federated_training_id] = num_avg_ops[-1]
+
+        lowest_global_test_loss = [min(global_test_loss[:i + 1]) for i in range(len(global_test_loss))]
+        best_val_loss_by_id[federated_training_id] = lowest_global_test_loss[-1]
+
+        communication_cost = [cost * cost_multiplier for cost in communication_cost]
+        communication_cost_by_id[federated_training_id] = communication_cost[-1]
+
+    list_acq_func = sorted(list(ids_by_acq_func.keys()))
+    for acq_func in list_acq_func:
+        fed_ids = ids_by_acq_func[acq_func]
+        best_val_losses = [best_val_loss_by_id[fed_id] for fed_id in fed_ids]
+        communication_costs = [communication_cost_by_id[fed_id] for fed_id in fed_ids]
+        num_steps = [num_steps_by_id[fed_id] for fed_id in fed_ids]
+        num_avg_ops = [num_avg_ops_by_id[fed_id] for fed_id in fed_ids]
+        best_val_loss = min(best_val_losses)
+        best_index = best_val_losses.index(best_val_loss)
+        best_communication_cost = communication_costs[best_index]
+        best_num_steps = num_steps[best_index]
+        best_num_avg_ops = num_avg_ops[best_index]
+        best_fed_id = fed_ids[best_index]
+        best_val_loss_by_acq_func[acq_func] = best_val_loss
+        communication_cost_by_acq_func[acq_func] = best_communication_cost
+        num_steps_by_acq_func[acq_func] = best_num_steps
+        num_avg_ops_by_acq_func[acq_func] = best_num_avg_ops
+        fed_id_by_acq_func[acq_func] = best_fed_id
+
+    return list_acq_func, best_val_loss_by_acq_func, communication_cost_by_acq_func, num_steps_by_acq_func, num_avg_ops_by_acq_func, fed_id_by_acq_func
