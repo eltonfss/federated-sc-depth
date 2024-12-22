@@ -966,7 +966,10 @@ def get_metrics_by_acquisition_function(federated_training_dirpath, round_cap, f
         fed_train_local_batch_size = config_args['fed_train_local_batch_size']
         fed_train_num_local_epochs = config_args['fed_train_num_local_epochs']
         fed_train_search_range = config_args['fed_train_average_search_range']
-        fed_train_acq_func = config_args.get('fed_train_average_search_acquisition_function', "GP_HEDGE")
+        fed_train_acq_func = config_args.get('fed_train_average_search_acquisition_function', "GPH")
+        fed_train_acq_func = fed_train_acq_func.replace("LCB", "CB")
+        #fed_train_acq_func = fed_train_acq_func.replace("EI", "Expectation of Improvement")
+        #fed_train_acq_func = fed_train_acq_func.replace("PI", "Probability of Improvement")
         fed_ids_with_acq_func = ids_by_acq_func.get(fed_train_acq_func, [])
         fed_ids_with_acq_func.append(federated_training_id)
         ids_by_acq_func[fed_train_acq_func] = fed_ids_with_acq_func
@@ -1034,7 +1037,7 @@ def get_metrics_by_acquisition_function(federated_training_dirpath, round_cap, f
         communication_cost = [cost * cost_multiplier for cost in communication_cost]
         communication_cost_by_id[federated_training_id] = communication_cost[-1]
 
-    list_acq_func = sorted(list(ids_by_acq_func.keys()))
+    list_acq_func = list(ids_by_acq_func.keys())
     for acq_func in list_acq_func:
         fed_ids = ids_by_acq_func[acq_func]
         best_val_losses = [best_val_loss_by_id[fed_id] for fed_id in fed_ids]
