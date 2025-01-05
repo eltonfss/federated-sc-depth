@@ -1,9 +1,13 @@
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 from IPython.core.display_functions import display
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import seaborn as sns
+import matplotlib.patches as mpatches
 
 
 class ComparativeAnalysis(object):
@@ -58,7 +62,8 @@ class ComparativeAnalysis(object):
 
         # Customize the plot
         plt.xlabel('METRIC')
-        plt.ylabel(label)
+        ylabel = "DIFFERENCE PROPORTION" if "diff_prop" in label else label
+        plt.ylabel(ylabel)
         # plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
 
@@ -71,7 +76,7 @@ class ComparativeAnalysis(object):
         # Save the plot as a PDF if specified
         if save_as_pdf:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-            plt.savefig(f'{label}_{region_type}_{source_train_dataset}_to_{target_train_dataset}_{timestamp}.pdf')
+            plt.savefig(f'{label}_{source_train_dataset.lower()}_to_{target_train_dataset.lower()}.pdf')
 
         # Show the plot
         plt.show()
@@ -87,12 +92,12 @@ class ComparativeAnalysis(object):
         )
 
     def plot_metrics_differences(self, metrics, target_region_type=None, save_as_pdf=False, legend_configs={},
-                                 colors=None, hatches=None, ):
+                                 colors=None, hatches=None, label=""):
         return self.plot_metrics(
             metrics, comparison_function=self.compute_metric_differences,
             group_columns=['source_train_dataset', 'target_train_dataset', 'training_method', 'test_dataset',
                            'test_region_type'],
-            label='DIFFERENCE PROPORTIONS', target_region_type=target_region_type, save_as_pdf=save_as_pdf,
+            label=f'diff_prop_{label}', target_region_type=target_region_type, save_as_pdf=save_as_pdf,
             legend_configs=legend_configs,
             colors=colors, hatches=hatches,
         )
@@ -151,3 +156,102 @@ class ComparativeAnalysis(object):
                         label, save_as_pdf, legend_configs,
                         colors=colors, hatches=hatches,
                     )
+
+    def normalize_metrics(self, df, target_metrics, inverse=False):
+        """
+        Normalize the specified metrics globally using MinMaxScaler.
+        """
+        scaler = MinMaxScaler()
+        display(df.sort_values(by=['source_train_dataset', 'test_abs_rel']))
+        if inverse:
+            df[target_metrics] = 1 - scaler.fit_transform(df[target_metrics])
+        else:
+            df[target_metrics] = scaler.fit_transform(df[target_metrics])
+        display(df.sort_values(by=['source_train_dataset', 'test_abs_rel']))
+        return df
+
+    def generate_radar_charts(self, df, target_metrics, label, target_methods=None, normalize=False, inverse=False,
+                              colors=None, hatches=None):
+        # Filter by target methods if specified
+        if target_methods:
+            df = pd.concat([df[df['training_method'] == target_method] for target_method in target_methods])
+
+        # Rename training methods for clarity
+        replace_dict = {
+            'FedSCDepth(Average)': 'RFSCD',
+            'FedSCDepth(Retrain)': 'ERFSCD',
+            'FedSCDepth(Average&Retrain)': 'ERRFSCD',
+            'FedSCDepth': 'FSCD',
+            'BOFedSCDepth(Average)': 'RBOFSCD',
+            'BOFedSCDepth(Retrain)': 'ERBOFSCD',
+            'BOFedSCDepth(ConstrainedLoss)': 'LBOFSCD',
+            'BOFedSCDepth(ConstrainedLossRetrain)': 'LERBOFSCD',
+            'BOFedSCDepth(Average&Retrain)': 'ERRBOFSCD',
+            'BOFedSCDepth': 'BOFSCD'
+        }
+        df = df.replace({'training_method': replace_dict})
+
+        # Normalize metrics globally
+        if normalize:
+            df = self.normalize_metrics(df, target_metrics, inverse)
+
+        # Create readable labels for metrics
+        label_metric = lambda metric: metric.replace('test_', "").replace("_comparison", "").replace("_", " ").upper()
+        label_by_target_metric = {metric: label_metric(metric) for metric in target_metrics}
+        df = df.rename(columns=label_by_target_metric)
+        target_metrics = list(label_by_target_metric.values())
+
+        # Group data by source and target datasets
+        combinations = df.groupby(['source_train_dataset', 'target_train_dataset'])
+
+        # Function to create radar charts
+        def create_radar_chart(categories, values, labels, title, filename, colors=None, hatches=None, ):
+            num_vars = len(categories)
+            angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+            values = [v + [v[0]] for v in values]  # Close the loop
+            angles += angles[:1]  # Duplicate first angle for full circle
+
+            fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+
+            for i, (value, label) in enumerate(zip(values, labels)):
+                ax.plot(angles, value, label=label, linewidth=2, color=colors[i % len(colors)], linestyle='-',
+                        marker='o')
+                ax.fill(angles, value, alpha=0.25, color=colors[i % len(colors)], hatch=hatches[i % len(hatches)])
+
+            ax.set_yticks([])
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(categories, fontsize=30, fontweight="bold")
+
+            handles = []
+            added_labels = set()
+            for i, label in enumerate(labels):
+                if label not in added_labels:
+                    patch = mpatches.Patch(color=colors[i % len(colors)], label=label, hatch=hatches[i % len(hatches)],
+                                           lw=2)
+                    handles.append(patch)
+                    added_labels.add(label)
+
+            #ax.set_title(title, fontsize=16)
+            ax.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, -0.4), prop={'weight':'bold'}, ncol=2, fontsize=10)
+
+            plt.tight_layout(rect=[0, 0, 1, 0.9])
+            plt.savefig(filename)
+            print(f"Saved radar chart: {filename}")
+            plt.show()
+
+        # Iterate through combinations of source and target datasets
+        for (source, target), group in combinations:
+            categories = target_metrics
+            values = []
+            labels = []
+
+            for method in group['training_method'].unique():
+                subset = group[group['training_method'] == method]
+                avg_values = [subset[metric].mean() for metric in target_metrics]
+                values.append(avg_values)
+                labels.append(method)
+
+            title = f'{label} Metrics Radar Chart for {source} -> {target}'
+            filename = f"{source.lower()}_{target.lower()}_spto_{label.lower()[:3]}.pdf"
+
+            create_radar_chart(categories, values, labels, title, filename, colors=colors, hatches=hatches)
