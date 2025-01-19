@@ -162,12 +162,12 @@ class ComparativeAnalysis(object):
         Normalize the specified metrics globally using MinMaxScaler.
         """
         scaler = MinMaxScaler()
-        display(df.sort_values(by=['source_train_dataset', 'test_abs_rel']))
+        display(df.round(3).sort_values(by=['source_train_dataset', 'test_abs_rel']))
         if inverse:
             df[target_metrics] = 1 - scaler.fit_transform(df[target_metrics])
         else:
             df[target_metrics] = scaler.fit_transform(df[target_metrics])
-        display(df.sort_values(by=['source_train_dataset', 'test_abs_rel']))
+        display(df.round(3).sort_values(by=['source_train_dataset', 'test_abs_rel']))
         return df
 
     def generate_radar_charts(self, df, target_metrics, label, target_methods=None, normalize=False, inverse=False,
