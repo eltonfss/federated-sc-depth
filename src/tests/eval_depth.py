@@ -5,6 +5,7 @@ from tqdm import tqdm
 from path import Path
 from imageio.v2 import imread
 from scipy import sparse
+from scipy.stats import bootstrap
 
 ################### Options ######################
 parser = argparse.ArgumentParser(description="Evaluation tests")
@@ -85,7 +86,7 @@ class DepthEval():
         else:
             print('the datset is not support')
 
-        assert (len(pred_depths) == len(gt_depths))
+        assert (len(pred_depths) == len(gt_depths)), f"{len(pred_depths)} != {len(gt_depths)}"
 
         """ Get segmentation masks """
         seg_masks = None
@@ -96,8 +97,24 @@ class DepthEval():
 
         self.evaluate_depth(gt_depths, pred_depths, seg_masks, eval_mono=True)
 
+    @staticmethod
+    def compute_confidence_intervals(errors, confidence_level=0.95, n_bootstrap=1000):
+        """Computes mean and confidence intervals using bootstrapping."""
+        errors = np.array(errors)
+        mean_values = np.mean(errors, axis=0)
+
+        if errors.shape[0] > 1:
+            ci = bootstrap((errors,), np.mean, confidence_level=confidence_level,
+                           n_resamples=n_bootstrap, method='percentile').confidence_interval
+            ci_lower = ci.low
+            ci_upper = ci.high
+        else:
+            ci_lower = ci_upper = mean_values  # If only one sample, CI is same as mean
+
+        return mean_values, ci_lower, ci_upper
+
     def evaluate_depth(self, gt_depths, pred_depths, seg_masks=None, eval_mono=True):
-        """evaluate depth result
+        """Evaluate depth result with confidence intervals.
         Args:
             gt_depths: list of gt depth files
             pred_depths: list of predicted depth files
@@ -197,26 +214,27 @@ class DepthEval():
             print(
                 " Scaling ratios | mean: {:0.3f} +- std: {:0.3f}".format(np.mean(ratios), np.std(ratios)))
 
-        mean_errors_full = np.array(full_errors).mean(0)
-        print("Evaluation on full images")
-        print("\n " + ("{:>8} | " * 8).format("abs_rel", "sq_rel",
-              "log10", "rmse", "rmse_log", "a1", "a2", "a3"))
-        print(("&{: 8.3f}  " * 8).format(*mean_errors_full.tolist()) + "\\\\")
+        def print_metrics(errors, label):
+            """Helper function to generate LaTeX code with mean ± confidence intervals."""
+            mean_vals, ci_lower, ci_upper = self.compute_confidence_intervals(errors)
 
+            print("\n{}:".format(label))
+            print("\n " + ("{:>8} | " * 8).format("abs_rel", "sq_rel", "log10", "rmse", "rmse_log", "a1", "a2", "a3"))
+
+            formatted_values = [
+                "& ${:8.3f} \\pm {:0.3f}$ ".format(m, (hi - lo) / 2)
+                for m, lo, hi in zip(mean_vals, ci_lower, ci_upper)
+            ]
+
+            print(" ".join(formatted_values) + "\\\\")
+
+        # Full image evaluation
+        print_metrics(full_errors, "Evaluation on full images")
+
+        # Dynamic/static regions (if segmentation masks are provided)
         if seg_masks is not None:
-            print("\n Evaluation on dynamic regions")
-            mean_errors_full = np.array(dynamic_errors).mean(0)
-            print("\n  " + ("{:>8} | " * 8).format("abs_rel",
-                  "sq_rel", "log10", "rmse", "rmse_log", "a1", "a2", "a3"))
-            print(("&{: 8.3f}  " * 8).format(*
-                  mean_errors_full.tolist()) + "\\\\")
-
-            print("\n Evaluation on static regions")
-            mean_errors_full = np.array(static_errors).mean(0)
-            print("\n  " + ("{:>8} | " * 8).format("abs_rel",
-                  "sq_rel", "log10", "rmse", "rmse_log", "a1", "a2", "a3"))
-            print(("&{: 8.3f}  " * 8).format(*
-                  mean_errors_full.tolist()) + "\\\\")
+            print_metrics(dynamic_errors, "Evaluation on dynamic regions")
+            print_metrics(static_errors, "Evaluation on static regions")
 
 
 eval = DepthEval()
