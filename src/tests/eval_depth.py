@@ -222,7 +222,7 @@ class DepthEval():
             print("\n " + ("{:>8} | " * 8).format("abs_rel", "sq_rel", "log10", "rmse", "rmse_log", "a1", "a2", "a3"))
 
             formatted_values = [
-                "& ${:8.3f} \\pm {:0.3f}$ ".format(m, (hi - lo) / 2)
+                "& ${:0.3f} \\pm {:0.3f}$ ".format(m, (hi - lo) / 2)
                 for m, lo, hi in zip(mean_vals, ci_lower, ci_upper)
             ]
 
